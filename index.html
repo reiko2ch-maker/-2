@@ -10,20 +10,20 @@
   <canvas id="game"></canvas>
 
   <div id="overlay" class="overlay">
-    <div class="hud top-left">
+    <div class="hud top-left hidden">
       <div id="dayLabel">DAY 1</div>
       <div id="phaseLabel">昼勤務</div>
     </div>
 
-    <div class="hud top-right">
+    <div class="hud top-right hidden">
       <button id="saveBtn" class="mini-btn">SAVE</button>
       <button id="loadBtn" class="mini-btn">LOAD</button>
       <button id="restartBtn" class="mini-btn danger">RESET</button>
     </div>
 
-    <div id="crosshair" class="crosshair">+</div>
+    <div id="crosshair" class="crosshair hidden">+</div>
 
-    <div id="objective" class="objective">女将に話しかける</div>
+    <div id="objective" class="objective hidden">女将に話しかける</div>
     <div id="prompt" class="prompt hidden">E / タップで調べる</div>
 
     <div id="dialogueBox" class="dialogue hidden">
@@ -36,7 +36,7 @@
 
     <div id="titleScreen" class="title-screen">
       <div class="title-inner">
-        <div class="eyebrow">PS1風ローポリ・一人称旅館ホラー</div>
+        <div class="eyebrow">PS1風ローポリ・一人称旅館ホラー / v2</div>
         <h1>宵宿</h1>
         <p>
           山奥の古い旅館で住み込み勤務を始めた。<br />
@@ -47,7 +47,7 @@
           <div>PC: WASD / マウス / E</div>
           <div>スマホ: 左下で移動 / 右側スワイプで視点 / ACTで調べる</div>
         </div>
-        <button id="startBtn" class="primary-btn">勤務開始</button>
+        <div class="title-actions"><button id="startBtn" type="button" class="primary-btn">最初から始める</button><button id="continueBtn" type="button" class="primary-btn secondary-btn hidden">続きから</button></div><div class="tap-help">ボタンが反応しない場合は、このパネルの中央をタップしてください。</div>
       </div>
     </div>
 
@@ -62,7 +62,7 @@
 
     <div id="fade" class="fade hidden"></div>
 
-    <div id="touchControls" class="touch-controls">
+    <div id="touchControls" class="touch-controls hidden">
       <div id="movePad" class="move-pad">
         <div id="moveStick" class="move-stick"></div>
       </div>

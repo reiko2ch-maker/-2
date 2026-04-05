@@ -408,3 +408,11 @@ h2 {
 .crosshair.hidden {
   display: none !important;
 }
+
+
+.title-actions { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+.secondary-btn { background: rgba(34, 30, 42, 0.95); }
+.tap-help { margin-top: 12px; font-size: 12px; color: var(--muted); }
+.title-screen, .title-inner, .primary-btn { touch-action: manipulation; }
+.title-inner { position: relative; z-index: 101; }
+#startBtn, #continueBtn { min-height: 56px; }

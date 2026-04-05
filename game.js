@@ -21,11 +21,12 @@ const actBtn = document.getElementById('actBtn');
 
 const startBtn = document.getElementById('startBtn');
 const endingRestartBtn = document.getElementById('endingRestartBtn');
+const continueBtn = document.getElementById('continueBtn');
 const saveBtn = document.getElementById('saveBtn');
 const loadBtn = document.getElementById('loadBtn');
 const restartBtn = document.getElementById('restartBtn');
 
-const STORAGE_KEY = 'yoinado_ps1_save_v1';
+const STORAGE_KEY = 'yoinado_ps1_save_v2';
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
 renderer.shadowMap.enabled = false;
@@ -1022,7 +1023,7 @@ function loadGame() {
   }
 }
 
-function resetGame() {
+function resetGame(showTitle = true) {
   localStorage.removeItem(STORAGE_KEY);
   Object.keys(taskFlags).forEach((key) => {
     taskFlags[key] = false;
@@ -1045,7 +1046,8 @@ function resetGame() {
   endingScreen.classList.add('hidden');
   dialogueBox.classList.add('hidden');
   choiceBox.classList.add('hidden');
-  titleScreen.classList.remove('hidden');
+  if (showTitle) titleScreen.classList.remove('hidden');
+  else titleScreen.classList.add('hidden');
   setPlayerStart();
   renderer.setClearColor(0x050507, 1);
   scene.fog = new THREE.Fog(0x050507, 10, 42);
@@ -1066,6 +1068,11 @@ function startGame() {
   setObjective('女将に話しかける');
   setStartedUI(true);
   saveGame();
+}
+
+function startNewGame() {
+  resetGame(false);
+  startGame();
 }
 
 function animate() {
@@ -1213,9 +1220,21 @@ function bindEvents() {
   window.addEventListener('keydown', (e) => onKey(e, true));
   window.addEventListener('keyup', (e) => onKey(e, false));
 
-  startBtn.addEventListener('click', startGame);
-  startBtn.addEventListener('touchend', (e) => { e.preventDefault(); startGame(); }, { passive: false });
-  endingRestartBtn.addEventListener('click', resetGame);
+  const titleTapStart = (e) => {
+    if (e) { e.preventDefault?.(); e.stopPropagation?.(); }
+    startNewGame();
+  };
+  startBtn.addEventListener('click', titleTapStart);
+  startBtn.addEventListener('touchend', titleTapStart, { passive: false });
+  titleScreen.addEventListener('click', (e) => {
+    if (e.target === titleScreen || e.target.closest('.title-inner')) titleTapStart(e);
+  });
+  titleScreen.addEventListener('touchend', (e) => {
+    if (e.target === titleScreen || e.target.closest('.title-inner')) titleTapStart(e);
+  }, { passive: false });
+  continueBtn?.addEventListener('click', (e) => { e.preventDefault(); loadGame(); });
+  continueBtn?.addEventListener('touchend', (e) => { e.preventDefault(); loadGame(); }, { passive: false });
+  endingRestartBtn.addEventListener('click', () => resetGame(true));
   saveBtn.addEventListener('click', saveGame);
   loadBtn.addEventListener('click', () => {
     if (!loadGame()) {
@@ -1224,7 +1243,7 @@ function bindEvents() {
       });
     }
   });
-  restartBtn.addEventListener('click', resetGame);
+  restartBtn.addEventListener('click', () => resetGame(true));
 
   dialogueBox.addEventListener('click', () => {
     if (state.currentDialogue) advanceDialogue();
@@ -1240,9 +1259,7 @@ resize();
 bindEvents();
 setObjective('勤務開始を押す');
 setStartedUI(false);
-animate();
-
-if (loadGame()) {
-  state.started = true;
-  state.allowInput = true;
+if (localStorage.getItem(STORAGE_KEY)) {
+  continueBtn?.classList.remove('hidden');
 }
+animate();
