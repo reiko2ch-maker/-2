@@ -3,60 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>宵宿 - PS1風ローポリ旅館ホラー v9</title>
+  <title>宵宿 v10</title>
   <link rel="stylesheet" href="styles.css" />
-  <style>
-    body { background:#000; }
-    .title-only {
-      position: fixed; inset: 0; display:flex; align-items:center; justify-content:center;
-      overflow:hidden;
-      background:
-        radial-gradient(circle at 50% 15%, rgba(176, 147, 100, 0.16), transparent 30%),
-        linear-gradient(180deg, rgba(4,4,8,0.78) 0%, rgba(2,2,6,0.9) 56%, rgba(0,0,0,0.96) 100%);
-      padding: 24px;
-    }
-    .title-card {
-      position: relative; z-index: 2; width:min(92vw, 760px); border-radius: 26px; padding: 26px 20px 22px;
-      background: rgba(9,7,13,.78); border:1px solid rgba(255,255,255,.14); box-shadow: 0 12px 38px rgba(0,0,0,.42);
-      backdrop-filter: blur(4px); text-align:center;
-    }
-    .title-card .title-topline { font-size:12px; letter-spacing:.18em; color:rgba(245,241,232,.66); }
-    .title-card .title-subkanji { margin-top:10px; font-size:13px; letter-spacing:.14em; color:#b89a69; }
-    .title-card .title-logo { margin:10px 0 0; font-size: clamp(54px, 16vw, 104px); line-height:1; letter-spacing:.08em; }
-    .title-card .title-ruby { letter-spacing:.32em; color:rgba(245,241,232,.7); font-size:12px; margin-top:8px; }
-    .title-card .title-copy { margin:18px auto 0; max-width: 560px; line-height:1.8; color:rgba(245,241,232,.86); }
-    .title-actions { display:flex; flex-direction:column; gap:12px; max-width: 360px; margin:22px auto 0; }
-    .title-link { display:flex; align-items:center; justify-content:center; text-decoration:none; }
-    .title-note { margin-top:14px; font-size:12px; color:rgba(245,241,232,.62); line-height:1.7; }
-    .version-badge { margin-top:14px; font-size:12px; color:#b89a69; }
-  </style>
 </head>
-<body>
-  <div class="title-only">
-    <div class="title-bg-glow"></div>
-    <div class="title-film"></div>
-    <div class="title-card">
-      <div class="title-topline">PS1風 LOW-POLY JAPANESE HORROR / v9</div>
-      <div class="title-subkanji">タイトル分離版</div>
+<body class="title-body">
+  <main class="title-screen-fixed">
+    <section class="title-shell-fixed">
+      <div class="title-kicker">PS1風 LOW-POLY JAPANESE HORROR / v10</div>
+      <div class="title-sub">山奥の住み込み旅館勤務</div>
       <h1 class="title-logo">宵宿</h1>
-      <div class="title-ruby">YOIYADO</div>
+      <div class="title-roman">YOIYADO</div>
       <p class="title-copy">
-        タイトル画面とゲーム画面を分離しました。<br>
-        これで「はじめから」が押せずに止まる問題を避けます。
+        昼は接客、夜は見回り。<br>
+        ただし、二階の突き当たりだけは見ないこと。
       </p>
-      <div class="title-actions">
-        <a class="primary-btn title-link" href="./play.html">はじめから</a>
-        <a class="primary-btn secondary-btn title-link" href="./play.html?continue=1">つづきから</a>
-      </div>
-      <div class="title-note">
-        これは JavaScript のボタン起動ではなく、通常のページ遷移です。<br>
-        iPhone Safari でも反応しやすい方式に変えています。
-      </div>
-      <div class="version-badge">v9 / title page → play page</div>
-    </div>
-    <div class="scanlines"></div>
-    <div class="noise"></div>
-    <div class="vignette"></div>
-  </div>
+
+      <nav class="title-actions">
+        <a class="title-btn primary" href="play.html">はじめから</a>
+        <a class="title-btn" href="play.html?continue=1">つづきから</a>
+      </nav>
+
+      <section class="title-howto">
+        <div class="title-howto-label">遊び方</div>
+        <p>スマホ: 左スティックで移動 / 右半分ドラッグで視点 / ACTで話す・調べる</p>
+        <p>PC: WASDで移動 / マウスドラッグで視点 / Eで話す・調べる</p>
+      </section>
+
+      <div class="title-foot">v10 / 外部ライブラリなし・タイトル遷移を固定</div>
+    </section>
+  </main>
 </body>
 </html>
