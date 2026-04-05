@@ -3,49 +3,79 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>宵鳴り旅館</title>
+  <title>宵宿 - PS1風ローポリ旅館ホラー</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
-    <div id="crt-frame">
-      <canvas id="viewport" width="180" height="320" aria-label="ゲーム画面"></canvas>
-      <div id="vhs-overlay"></div>
-      <div id="hud-top">
-        <div id="day-label">Day 1</div>
-        <div id="phase-label">準備中</div>
-      </div>
-      <div id="hud-sub">
-        <div id="objective-label">目的: まだありません</div>
-        <div id="turn-label"></div>
+  <canvas id="game"></canvas>
+
+  <div id="overlay" class="overlay">
+    <div class="hud top-left">
+      <div id="dayLabel">DAY 1</div>
+      <div id="phaseLabel">昼勤務</div>
+    </div>
+
+    <div class="hud top-right">
+      <button id="saveBtn" class="mini-btn">SAVE</button>
+      <button id="loadBtn" class="mini-btn">LOAD</button>
+      <button id="restartBtn" class="mini-btn danger">RESET</button>
+    </div>
+
+    <div id="crosshair" class="crosshair">+</div>
+
+    <div id="objective" class="objective">女将に話しかける</div>
+    <div id="prompt" class="prompt hidden">E / タップで調べる</div>
+
+    <div id="dialogueBox" class="dialogue hidden">
+      <div id="speaker" class="speaker">女将</div>
+      <div id="dialogueText" class="dialogue-text"></div>
+      <div class="dialogue-help">タップ / Enter / E で進む</div>
+    </div>
+
+    <div id="choiceBox" class="choice-box hidden"></div>
+
+    <div id="titleScreen" class="title-screen">
+      <div class="title-inner">
+        <div class="eyebrow">PS1風ローポリ・一人称旅館ホラー</div>
+        <h1>宵宿</h1>
+        <p>
+          山奥の古い旅館で住み込み勤務を始めた。<br />
+          昼は接客、夜は見回り。<br />
+          ただし、二階の突き当たりだけは見ないこと。
+        </p>
+        <div class="controls">
+          <div>PC: WASD / マウス / E</div>
+          <div>スマホ: 左下で移動 / 右側スワイプで視点 / ACTで調べる</div>
+        </div>
+        <button id="startBtn" class="primary-btn">勤務開始</button>
       </div>
     </div>
 
-    <div id="panel">
-      <div id="title-bar">
-        <div class="title-main">宵鳴り旅館</div>
-        <div class="title-sub">YOINARI RYOKAN</div>
-      </div>
-
-      <div id="stats"></div>
-      <div id="text-box"></div>
-      <div id="choice-box"></div>
-
-      <div id="controls" class="hidden">
-        <div class="controls-row">
-          <button data-action="turnLeft">↺ 左</button>
-          <button data-action="forward">前進</button>
-          <button data-action="turnRight">右 ↻</button>
-        </div>
-        <div class="controls-row">
-          <button data-action="inspect">調べる</button>
-          <button data-action="back">後退</button>
-          <button data-action="menu">保存</button>
-        </div>
+    <div id="endingScreen" class="ending-screen hidden">
+      <div class="title-inner ending-inner">
+        <div class="eyebrow">ENDING</div>
+        <h2 id="endingTitle">END</h2>
+        <p id="endingText"></p>
+        <button id="endingRestartBtn" class="primary-btn">最初から</button>
       </div>
     </div>
+
+    <div id="fade" class="fade hidden"></div>
+
+    <div id="touchControls" class="touch-controls">
+      <div id="movePad" class="move-pad">
+        <div id="moveStick" class="move-stick"></div>
+      </div>
+      <div class="touch-actions">
+        <button id="actBtn" class="action-btn">ACT</button>
+      </div>
+    </div>
+
+    <div class="scanlines"></div>
+    <div class="noise"></div>
+    <div class="vignette"></div>
   </div>
 
-  <script src="game.js"></script>
+  <script type="module" src="game.js"></script>
 </body>
 </html>
