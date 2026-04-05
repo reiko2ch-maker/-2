@@ -101,6 +101,16 @@ const audio = {
   ctx: null,
 };
 
+function setStartedUI(started) {
+  document.querySelector('.top-left')?.classList.toggle('hidden', !started);
+  document.querySelector('.top-right')?.classList.toggle('hidden', !started);
+  objectiveEl.classList.toggle('hidden', !started);
+  promptEl.classList.add('hidden');
+  document.getElementById('crosshair')?.classList.toggle('hidden', !started);
+  document.getElementById('touchControls')?.classList.toggle('hidden', !started);
+}
+
+
 function ensureAudio() {
   if (!audio.ctx) {
     audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1003,6 +1013,7 @@ function loadGame() {
     titleScreen.classList.add('hidden');
     endingScreen.classList.add('hidden');
     state.allowInput = true;
+    setStartedUI(true);
     applyWorldState();
     return true;
   } catch (error) {
@@ -1042,6 +1053,7 @@ function resetGame() {
   world.lights.corridor.intensity = 0.45;
   setPhase('title');
   setObjective('勤務開始を押す');
+  setStartedUI(false);
 }
 
 function startGame() {
@@ -1052,6 +1064,7 @@ function startGame() {
   state.allowInput = true;
   setPhase('day');
   setObjective('女将に話しかける');
+  setStartedUI(true);
   saveGame();
 }
 
@@ -1201,6 +1214,7 @@ function bindEvents() {
   window.addEventListener('keyup', (e) => onKey(e, false));
 
   startBtn.addEventListener('click', startGame);
+  startBtn.addEventListener('touchend', (e) => { e.preventDefault(); startGame(); }, { passive: false });
   endingRestartBtn.addEventListener('click', resetGame);
   saveBtn.addEventListener('click', saveGame);
   loadBtn.addEventListener('click', () => {
@@ -1225,6 +1239,7 @@ setPlayerStart();
 resize();
 bindEvents();
 setObjective('勤務開始を押す');
+setStartedUI(false);
 animate();
 
 if (loadGame()) {

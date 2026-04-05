@@ -36,7 +36,7 @@ canvas#game {
 .overlay {
   position: fixed;
   inset: 0;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .hud {
@@ -381,4 +381,30 @@ h2 {
     top: 10px;
     font-size: 12px;
   }
+}
+
+
+.hud.top-left,
+.crosshair,
+.objective,
+.prompt,
+.scanlines,
+.noise,
+.vignette {
+  pointer-events: none;
+}
+
+.title-inner {
+  pointer-events: auto;
+}
+
+.title-screen {
+  z-index: 100;
+}
+
+.touch-controls.hidden,
+.hud.hidden,
+.objective.hidden,
+.crosshair.hidden {
+  display: none !important;
 }
