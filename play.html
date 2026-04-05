@@ -3,32 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>宵宿 PLAY v13</title>
+  <title>宵宿 PLAY v14</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="play-body">
   <canvas id="gameCanvas"></canvas>
 
   <div id="hud" class="hud-wrap">
-    <div class="hud-top-left">
+    <div class="hud-row left">
       <div id="dayLabel" class="hud-chip">DAY 1</div>
-      <div id="phaseLabel" class="hud-chip">昼勤務</div>
+      <div id="phaseLabel" class="hud-chip accent">昼勤務</div>
       <div id="areaLabel" class="hud-chip subtle">帳場</div>
     </div>
-    <div class="hud-top-center">
+
+    <div class="hud-row center hud-block" id="miniMapWrap">
       <div class="map-frame">
-        <div class="map-title">案内図</div>
-        <canvas id="miniMap" width="120" height="120"></canvas>
+        <div class="map-title">館内導線</div>
+        <canvas id="miniMap" width="190" height="84"></canvas>
       </div>
     </div>
-    <div class="hud-top-right">
-      <button id="saveBtn" class="mini-btn" type="button">SAVE</button>
-      <button id="loadBtn" class="mini-btn" type="button">LOAD</button>
-      <a class="mini-btn" href="index.html">TITLE</a>
+
+    <div class="hud-row right">
+      <button id="menuBtn" class="mini-btn" type="button">MENU</button>
     </div>
 
     <div id="objectiveBox" class="objective-box">読み込み中...</div>
-    <div id="promptBox" class="prompt-box hidden">ACTで調べる</div>
+    <div id="promptBox" class="prompt-box hidden">E / ACT で調べる</div>
+    <div id="statusBox" class="status-box">起動中...</div>
 
     <div id="dialogueBox" class="dialogue-box hidden">
       <div id="speakerLabel" class="speaker-label">記録</div>
@@ -36,30 +37,39 @@
       <div class="dialogue-help">タップ / E / ACT で進む</div>
     </div>
 
-    <div id="statusBox" class="status-box">起動中...</div>
-
-    <div class="touch-ui">
-      <div class="move-wrap">
-        <div class="stick-title">MOVE</div>
-        <div id="movePad" class="stick-pad">
-          <div id="moveKnob" class="stick-knob"></div>
-        </div>
-      </div>
-
-      <div class="right-ui">
-        <div class="look-hint">右側ドラッグで視点</div>
-        <button id="actBtn" class="act-btn" type="button">ACT</button>
+    <div id="menuPanel" class="menu-panel hidden">
+      <div class="menu-title">メニュー</div>
+      <div class="menu-grid">
+        <button id="saveBtn" class="menu-btn" type="button">SAVE</button>
+        <button id="loadBtn" class="menu-btn" type="button">LOAD</button>
+        <button id="hudToggleBtn" class="menu-btn" type="button">HUD OFF</button>
+        <a class="menu-btn link" href="index.html">TITLE</a>
       </div>
     </div>
 
     <div id="endingScreen" class="ending-screen hidden">
       <div class="ending-card">
         <div class="title-kicker">ENDING</div>
-        <h2 id="endingTitle">勤務終了</h2>
+        <h2 id="endingTitle">記録の夜</h2>
         <p id="endingText">……</p>
         <a href="index.html" class="title-btn primary">タイトルへ戻る</a>
       </div>
     </div>
+
+    <div class="touch-ui landscape">
+      <div class="move-wrap">
+        <div class="stick-title">MOVE</div>
+        <div id="movePad" class="stick-pad">
+          <div id="moveKnob" class="stick-knob"></div>
+        </div>
+      </div>
+      <div class="right-ui">
+        <div class="look-hint">右半分ドラッグで視点</div>
+        <button id="actBtn" class="act-btn" type="button">ACT</button>
+      </div>
+    </div>
+
+    <div class="rotate-hint">横画面推奨</div>
   </div>
 
   <script>

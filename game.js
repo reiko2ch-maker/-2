@@ -3,180 +3,326 @@
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d', { alpha: false });
+  const off = document.createElement('canvas');
+  const OFF_W = 360;
+  const OFF_H = 202;
+  off.width = OFF_W;
+  off.height = OFF_H;
+  const g = off.getContext('2d', { alpha: false });
+  g.imageSmoothingEnabled = false;
+
   const mapCanvas = document.getElementById('miniMap');
   const mapCtx = mapCanvas.getContext('2d', { alpha: false });
-
-  const statusBox = document.getElementById('statusBox');
+  const hud = document.getElementById('hud');
+  const dayLabel = document.getElementById('dayLabel');
+  const phaseLabel = document.getElementById('phaseLabel');
+  const areaLabel = document.getElementById('areaLabel');
   const objectiveBox = document.getElementById('objectiveBox');
   const promptBox = document.getElementById('promptBox');
+  const statusBox = document.getElementById('statusBox');
   const dialogueBox = document.getElementById('dialogueBox');
   const dialogueText = document.getElementById('dialogueText');
   const speakerLabel = document.getElementById('speakerLabel');
-  const phaseLabel = document.getElementById('phaseLabel');
-  const areaLabel = document.getElementById('areaLabel');
-  const dayLabel = document.getElementById('dayLabel');
+  const menuBtn = document.getElementById('menuBtn');
+  const menuPanel = document.getElementById('menuPanel');
+  const saveBtn = document.getElementById('saveBtn');
+  const loadBtn = document.getElementById('loadBtn');
+  const hudToggleBtn = document.getElementById('hudToggleBtn');
   const endingScreen = document.getElementById('endingScreen');
   const endingTitle = document.getElementById('endingTitle');
   const endingText = document.getElementById('endingText');
   const actBtn = document.getElementById('actBtn');
   const movePad = document.getElementById('movePad');
   const moveKnob = document.getElementById('moveKnob');
-  const saveBtn = document.getElementById('saveBtn');
-  const loadBtn = document.getElementById('loadBtn');
 
-  const STORAGE_KEY = 'yoinado_v13_save';
-  const OFF_W = 320;
-  const OFF_H = 200;
-  const FOV = Math.PI / 3.2;
-  const MAX_DEPTH = 22;
-  const off = document.createElement('canvas');
-  off.width = OFF_W;
-  off.height = OFF_H;
-  const g = off.getContext('2d', { alpha: false });
-  g.imageSmoothingEnabled = false;
-
-  const player = { x: 2.5, y: 9.6, a: -0.03, radius: 0.18, speed: 2.1, area: 'lobby' };
-  const keys = { w:false, a:false, s:false, d:false };
-  const moveInput = { active:false, x:0, y:0, pointerId:null };
-  const lookInput = { active:false, lastX:0, pointerId:null, dx:0 };
+  const STORAGE_KEY = 'yoinado_v14_github_save';
+  const FOV = Math.PI / 3.1;
+  const MAX_DEPTH = 24;
 
   const state = {
-    phase: 'day',
+    step: 0,
     day: 1,
+    phase: 'day',
     objective: '女将に話しかける',
     inDialogue: false,
     dialogueQueue: [],
     dialogueOnEnd: null,
     nearby: null,
     ending: false,
+    hudMinimal: false,
     pulse: 0,
     areaFlash: 0,
+    menuOpen: false,
   };
 
   const tasks = {
-    talkedToOkami: false,
+    talkedOkami: false,
     gotTray: false,
-    servedTea: false,
-    heardRumor: false,
-    readLedger: false,
-    startedNight: false,
-    talkedWorker: false,
-    checked203: false,
+    servedGuest: false,
+    talkedMaid: false,
+    answeredPhone: false,
+    checkedBath: false,
+    gotNotebook: false,
   };
+
+  const player = {
+    x: 2.4,
+    y: 8.6,
+    a: -0.05,
+    area: 'lobby',
+    radius: 0.18,
+    speed: 2.25,
+  };
+
+  const keys = { w:false, a:false, s:false, d:false, shift:false };
+  const moveInput = { active:false, x:0, y:0, pointerId:null };
+  const lookInput = { active:false, lastX:0, pointerId:null, dx:0 };
 
   const areas = {
     lobby: {
       name: '帳場',
-      skyTop: '#1b1a26', skyBottom: '#6b5137',
-      floorA: '#6d593f', floorB: '#5b4934', ceilA: '#2a2430', ceilB: '#19151e',
+      skyTop: '#191a24', skyBottom: '#6c5034',
+      floorA: '#6a573f', floorB: '#5a4934', ceilA: '#2a2430', ceilB: '#19151d',
       map: [
-        '####################',
-        '#......WWWWWW......#',
-        '#......W....W......#',
-        '#......W....W......#',
-        '#......W....W......#',
-        '#......W....W......#',
-        '#......WWWWWW......#',
-        '#..................#',
-        '#..................#',
-        '#..................#',
-        '#..................#',
-        '####################'
+        '################',
+        '#......WWWW....#',
+        '#......W..W....#',
+        '#......W..W....#',
+        '#......WWWW....#',
+        '#..............#',
+        '#..CCCC........#',
+        '#..............#',
+        '#...........TT.#',
+        '################'
       ],
       spawns: {
-        start: { x: 2.5, y: 9.6, a: -0.03 },
-        fromHall: { x: 16.6, y: 9.1, a: Math.PI },
+        start: { x: 2.4, y: 8.4, a: -0.02 },
+        fromHall: { x: 12.7, y: 8.0, a: Math.PI },
       },
+      signs: [
+        { x: 2.5, y: 7.1, text: '帳場' },
+        { x: 12.6, y: 8.7, text: '客室廊下' },
+      ]
     },
     hall: {
       name: '客室廊下',
-      skyTop: '#10161f', skyBottom: '#4d3827',
-      floorA: '#6a533a', floorB: '#5c4732', ceilA: '#21202b', ceilB: '#17141d',
+      skyTop: '#111723', skyBottom: '#503928',
+      floorA: '#655038', floorB: '#56442f', ceilA: '#21212a', ceilB: '#15131b',
       map: [
         '########################',
         '#......................#',
         '#......................#',
-        '#......................#',
-        '#....DD....DD....DD....#',
-        '#......................#',
+        '#...DD.....DD....BB....#',
         '#......................#',
         '#......................#',
-        '#....SSSSSSSSSSSS......#',
         '#......................#',
+        '#....SSSSSSSSSS........#',
         '#......................#',
         '########################'
       ],
       spawns: {
-        fromLobby: { x: 2.2, y: 9.2, a: 0 },
-        fromRoom: { x: 18.6, y: 5.6, a: Math.PI },
-        fromNorth: { x: 11.5, y: 2.2, a: Math.PI / 2 },
+        fromLobby: { x: 2.0, y: 7.8, a: 0 },
+        fromRoom: { x: 9.4, y: 5.1, a: Math.PI },
+        fromBath: { x: 18.0, y: 5.0, a: Math.PI },
+        fromArchive: { x: 14.0, y: 2.0, a: Math.PI / 2 },
       },
+      signs: [
+        { x: 4.2, y: 2.0, text: '201' },
+        { x: 11.2, y: 2.0, text: '202' },
+        { x: 18.9, y: 2.0, text: '浴場前' },
+        { x: 14.3, y: 7.7, text: '北棟・宿帳庫' },
+      ]
     },
     room201: {
       name: '201号室',
-      skyTop: '#15141d', skyBottom: '#614431',
-      floorA: '#7a6b4e', floorB: '#665a43', ceilA: '#241e25', ceilB: '#19161b',
+      skyTop: '#19161d', skyBottom: '#6c4c34',
+      floorA: '#7a6b4e', floorB: '#665a43', ceilA: '#251f25', ceilB: '#19161a',
       map: [
         '############',
         '#....SS....#',
         '#..........#',
-        '#..........#',
-        '#..........#',
-        '#..........#',
+        '#....TT....#',
         '#..........#',
         '#..........#',
         '#..........#',
         '############'
       ],
       spawns: {
-        door: { x: 2.1, y: 5.4, a: 0 },
+        door: { x: 2.0, y: 5.0, a: 0 },
       },
+      signs: [
+        { x: 5.9, y: 1.6, text: '201号室' },
+      ]
     },
-    north: {
-      name: '北の裏廊下',
-      skyTop: '#091116', skyBottom: '#20363f',
-      floorA: '#4d524f', floorB: '#3d4341', ceilA: '#171b21', ceilB: '#0d1016',
+    bath: {
+      name: '浴場前',
+      skyTop: '#0e1319', skyBottom: '#33444f',
+      floorA: '#5f6665', floorB: '#4f5554', ceilA: '#1d2128', ceilB: '#12151b',
       map: [
-        '####################',
-        '#..................#',
-        '#..SSSSSS..SSSS....#',
-        '#..................#',
-        '#..................#',
-        '#..........DD......#',
-        '#..................#',
-        '#..................#',
-        '#..................#',
-        '####################'
+        '##############',
+        '#....MMMM....#',
+        '#............#',
+        '#............#',
+        '#....TT......#',
+        '#............#',
+        '#............#',
+        '##############'
       ],
       spawns: {
-        entry: { x: 2.2, y: 7.5, a: 0 },
+        door: { x: 2.0, y: 5.0, a: 0 },
       },
+      signs: [
+        { x: 7.0, y: 1.8, text: '浴場前' },
+      ]
+    },
+    archive: {
+      name: '宿帳庫',
+      skyTop: '#0a1016', skyBottom: '#23343b',
+      floorA: '#48423b', floorB: '#3d3732', ceilA: '#171b21', ceilB: '#0f1217',
+      map: [
+        '##############',
+        '#....NNNN....#',
+        '#............#',
+        '#............#',
+        '#...KK.......#',
+        '#............#',
+        '#............#',
+        '##############'
+      ],
+      spawns: {
+        entry: { x: 2.0, y: 5.0, a: 0 },
+      },
+      signs: [
+        { x: 6.8, y: 1.8, text: '宿帳庫' },
+      ]
     }
+  };
+
+  const textures = createTextures();
+  const spriteCanvases = {
+    okami: makeSprite('okami'),
+    guest: makeSprite('guest'),
+    maid: makeSprite('maid'),
+    ghost: makeSprite('ghost'),
+    tray: makeSprite('tray'),
+    phone: makeSprite('phone'),
+    notebook: makeSprite('notebook'),
+    bathSign: makeSprite('bathSign'),
   };
 
   function currentArea() { return areas[player.area]; }
   function currentMap() { return currentArea().map; }
-  function mapW() { return currentMap()[0].length; }
-  function mapH() { return currentMap().length; }
 
   function setStatus(text) { statusBox.textContent = text; }
-  function setObjective(text) { state.objective = text; }
+  function setObjective(text) { state.objective = text; objectiveBox.textContent = text; }
 
   function tileAt(x, y) {
     const mx = Math.floor(x), my = Math.floor(y);
     const map = currentMap();
-    if (mx < 0 || my < 0 || mx >= map[0].length || my >= map.length) return '#';
+    if (mx < 0 || my < 0 || my >= map.length || mx >= map[0].length) return '#';
     return map[my][mx];
   }
+  function isSolid(x, y) { return tileAt(x, y) !== '.'; }
 
-  function isWall(x, y) {
-    const t = tileAt(x, y);
-    return t !== '.';
+  function spawnAt(areaId, spawnKey) {
+    const sp = areas[areaId].spawns[spawnKey] || Object.values(areas[areaId].spawns)[0];
+    player.area = areaId;
+    player.x = sp.x;
+    player.y = sp.y;
+    player.a = sp.a;
+    areaLabel.textContent = areas[areaId].name;
+    state.areaFlash = 1;
   }
 
-  function moveAndCollide(nx, ny) {
-    if (!isWall(nx, player.y)) player.x = nx;
-    if (!isWall(player.x, ny)) player.y = ny;
+  function changeArea(areaId, spawnKey) {
+    spawnAt(areaId, spawnKey);
+    setStatus('エリア移動: ' + areas[areaId].name);
+  }
+
+  function startNew() {
+    tasks.talkedOkami = false;
+    tasks.gotTray = false;
+    tasks.servedGuest = false;
+    tasks.talkedMaid = false;
+    tasks.answeredPhone = false;
+    tasks.checkedBath = false;
+    tasks.gotNotebook = false;
+    state.step = 0;
+    state.day = 1;
+    state.phase = 'day';
+    state.inDialogue = false;
+    state.ending = false;
+    state.dialogueQueue = [];
+    dayLabel.textContent = 'DAY 1';
+    phaseLabel.textContent = '昼勤務';
+    endingScreen.classList.add('hidden');
+    dialogueBox.classList.add('hidden');
+    promptBox.classList.add('hidden');
+    spawnAt('lobby', 'start');
+    setObjective('女将に話しかける');
+    setStatus('起動完了 / v14 GitHub Edition');
+    showDialogue([
+      ['記録', '住み込み初日。館内は静かすぎるほど静かだ。'],
+      ['記録', '女将に挨拶し、最初の仕事を受ける。客の証言は、夜の事件にそのまま繋がる。']
+    ]);
+  }
+
+  function getSaveData() {
+    return {
+      player: { x: player.x, y: player.y, a: player.a, area: player.area },
+      tasks: { ...tasks },
+      state: {
+        step: state.step,
+        day: state.day,
+        phase: state.phase,
+        objective: state.objective,
+        hudMinimal: state.hudMinimal,
+      }
+    };
+  }
+
+  function saveGame() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(getSaveData()));
+    setStatus('保存した / v14');
+  }
+
+  function loadGame() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { setStatus('保存データなし'); return false; }
+    try {
+      const data = JSON.parse(raw);
+      Object.assign(tasks, data.tasks || {});
+      Object.assign(player, data.player || {});
+      state.step = data.state?.step || 0;
+      state.day = data.state?.day || 1;
+      state.phase = data.state?.phase || 'day';
+      state.hudMinimal = !!data.state?.hudMinimal;
+      dayLabel.textContent = 'DAY ' + state.day;
+      phaseLabel.textContent = state.phase === 'night' ? '深夜調査' : '昼勤務';
+      areaLabel.textContent = areas[player.area].name;
+      setObjective(data.state?.objective || '続きから再開');
+      applyHudState();
+      endingScreen.classList.add('hidden');
+      dialogueBox.classList.add('hidden');
+      promptBox.classList.add('hidden');
+      state.ending = false;
+      state.inDialogue = false;
+      setStatus('ロードした / v14');
+      return true;
+    } catch (err) {
+      setStatus('ロード失敗');
+      return false;
+    }
+  }
+
+  function applyHudState() {
+    hud.classList.toggle('hud-minimal', state.hudMinimal);
+    hudToggleBtn.textContent = state.hudMinimal ? 'HUD ON' : 'HUD OFF';
+  }
+
+  function toggleMenu(force) {
+    state.menuOpen = typeof force === 'boolean' ? force : !state.menuOpen;
+    menuPanel.classList.toggle('hidden', !state.menuOpen);
   }
 
   function showDialogue(lines, onEnd) {
@@ -185,12 +331,13 @@
     state.dialogueOnEnd = onEnd || null;
     dialogueBox.classList.remove('hidden');
     promptBox.classList.add('hidden');
+    toggleMenu(false);
     advanceDialogue();
   }
 
   function advanceDialogue() {
     if (!state.inDialogue) return;
-    if (state.dialogueQueue.length === 0) {
+    if (!state.dialogueQueue.length) {
       state.inDialogue = false;
       dialogueBox.classList.add('hidden');
       const fn = state.dialogueOnEnd;
@@ -211,580 +358,690 @@
     promptBox.classList.add('hidden');
   }
 
-  function getSaveData() {
-    return {
-      player: { x: player.x, y: player.y, a: player.a, area: player.area },
-      tasks: { ...tasks },
-      phase: state.phase,
-      day: state.day,
-      objective: state.objective,
+  function scriptedStepAction(actionId) {
+    switch (actionId) {
+      case 'okami':
+        showDialogue([
+          ['女将', '今日から帳場と二階の手伝いに入ってもらいます。まずは201号室へお茶を。'],
+          ['女将', 'この宿は、夜になると音がよく響きます。内線が鳴っても、慌てず順番に。'],
+          ['記録', '帳場の横に置かれた配膳盆を持っていく。']
+        ], () => {
+          tasks.talkedOkami = true;
+          state.step = 1;
+          setObjective('帳場の配膳盆を取る');
+          setStatus('仕事開始: 配膳盆を持つ');
+        });
+        break;
+      case 'tray':
+        showDialogue([
+          ['記録', '湯呑みが二つ。依頼は一人客のはずなのに、盆はやけに重い。']
+        ], () => {
+          tasks.gotTray = true;
+          state.step = 2;
+          setObjective('201号室の客にお茶を届ける');
+          setStatus('配膳盆を持った');
+        });
+        break;
+      case 'toHall':
+        changeArea('hall', 'fromLobby');
+        break;
+      case 'toLobby':
+        changeArea('lobby', 'fromHall');
+        break;
+      case 'toRoom201':
+        changeArea('room201', 'door');
+        break;
+      case 'room201Exit':
+        changeArea('hall', 'fromRoom');
+        break;
+      case 'toBath':
+        changeArea('bath', 'door');
+        break;
+      case 'bathExit':
+        changeArea('hall', 'fromBath');
+        break;
+      case 'toArchive':
+        changeArea('archive', 'entry');
+        break;
+      case 'archiveExit':
+        changeArea('hall', 'fromArchive');
+        break;
+      case 'guest':
+        showDialogue([
+          ['201号室の客', '……遅かったな。昨日も、同じ時間に湯呑みが二つ来た。'],
+          ['201号室の客', '昨夜、浴場前で濡れた足音を聞いた。子どもの足音みたいに軽かった。'],
+          ['201号室の客', '女将には言うな。北の宿帳庫に青いノートがある。事件を調べるなら、あれを見ろ。']
+        ], () => {
+          tasks.servedGuest = true;
+          state.step = 3;
+          setObjective('廊下の仲居に客の話を伝える');
+          setStatus('客の証言を聞いた');
+        });
+        break;
+      case 'maid':
+        showDialogue([
+          ['仲居・篠', '青いノート？ そんな物は帳場にはないはずです。'],
+          ['仲居・篠', 'でも、さっきから内線が一度も止まらないんです。誰もいない浴場前から。'],
+          ['仲居・篠', '先に帳場へ戻ってください。女将が電話口で待っています。']
+        ], () => {
+          tasks.talkedMaid = true;
+          state.step = 4;
+          setObjective('帳場の黒電話に出る');
+          setStatus('帳場へ戻る');
+        });
+        break;
+      case 'phone':
+        showDialogue([
+          ['受話器の向こう', '……二つ、足りない。'],
+          ['受話器の向こう', '浴場の鏡を見ろ。帳場の女は、順番を変えている。'],
+          ['女将', '今の、聞きましたか。夜の見回りに入ってください。鍵は開けてあります。']
+        ], () => {
+          tasks.answeredPhone = true;
+          state.step = 5;
+          state.phase = 'night';
+          phaseLabel.textContent = '深夜調査';
+          setObjective('浴場前の鏡を調べる');
+          setStatus('深夜調査に切り替わった');
+        });
+        break;
+      case 'mirror':
+        showDialogue([
+          ['記録', '鏡の曇りを拭うと、背後にいないはずの子どもが立っていた。'],
+          ['記録', '次の瞬間、鏡には「帳場ではなく北へ」と指でなぞった跡が残る。']
+        ], () => {
+          tasks.checkedBath = true;
+          state.step = 6;
+          setObjective('北の宿帳庫で青いノートを探す');
+          setStatus('宿帳庫を調べる');
+        });
+        break;
+      case 'notebook':
+        showDialogue([
+          ['記録', '青いノートの最後の行には、宿泊者名簿から消えた名前が並んでいる。'],
+          ['記録', 'その一番下に、今夜の自分の名前があった。'],
+          ['記録', '女将は事件を隠していたのではない。次の消失順を、静かに待っていた。']
+        ], () => {
+          tasks.gotNotebook = true;
+          state.step = 7;
+          saveGame();
+          endGame('宿帳に書かれた名前', '仕事の中で集めた証言が、失踪の順番を指していた。帳場に戻る前に夜は終わった。続きを作るなら、次は女将との対決と北棟の奥へ進む章。');
+        });
+        break;
+    }
+  }
+
+  const areaMapLayout = {
+    lobby: { x: 10, y: 20, w: 42, h: 42, label: '帳場' },
+    hall: { x: 60, y: 20, w: 52, h: 42, label: '廊下' },
+    room201: { x: 118, y: 8, w: 54, h: 24, label: '201' },
+    bath: { x: 118, y: 38, w: 54, h: 24, label: '浴場前' },
+    archive: { x: 88, y: 62, w: 54, h: 18, label: '宿帳庫' },
+  };
+
+  function miniMapObjectiveArea() {
+    if (state.step <= 1) return 'lobby';
+    if (state.step === 2) return 'room201';
+    if (state.step === 3) return 'hall';
+    if (state.step === 4) return 'lobby';
+    if (state.step === 5) return 'bath';
+    if (state.step === 6) return 'archive';
+    return player.area;
+  }
+
+  function drawMiniMap() {
+    mapCtx.fillStyle = '#0d1016';
+    mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+    mapCtx.strokeStyle = 'rgba(255,255,255,.1)';
+    mapCtx.lineWidth = 2;
+    mapCtx.beginPath();
+    mapCtx.moveTo(52, 41); mapCtx.lineTo(60, 41);
+    mapCtx.lineTo(112, 41); mapCtx.lineTo(118, 20);
+    mapCtx.moveTo(112, 41); mapCtx.lineTo(118, 50);
+    mapCtx.moveTo(86, 62); mapCtx.lineTo(86, 62);
+    mapCtx.lineTo(86, 68);
+    mapCtx.stroke();
+
+    const target = miniMapObjectiveArea();
+    for (const [key, box] of Object.entries(areaMapLayout)) {
+      const active = key === player.area;
+      const objective = key === target;
+      mapCtx.fillStyle = active ? '#cfaa74' : objective ? '#6a8cc5' : '#1d2430';
+      mapCtx.fillRect(box.x, box.y, box.w, box.h);
+      mapCtx.strokeStyle = objective ? '#b4d1ff' : 'rgba(255,255,255,.18)';
+      mapCtx.strokeRect(box.x + .5, box.y + .5, box.w - 1, box.h - 1);
+      mapCtx.fillStyle = active ? '#18130f' : '#f5efe5';
+      mapCtx.font = '10px sans-serif';
+      mapCtx.textAlign = 'center';
+      mapCtx.fillText(box.label, box.x + box.w / 2, box.y + box.h / 2 + 3);
+    }
+  }
+
+  function activeSprites() {
+    const list = [];
+    const push = (entry) => {
+      if (entry.area === player.area) list.push(entry);
     };
+    push({ type:'npc', id:'okami', area:'lobby', x:5.7, y:6.2, kind:'okami', prompt:'女将に話しかける', active: !tasks.talkedOkami });
+    push({ type:'item', id:'tray', area:'lobby', x:12.8, y:8.2, kind:'tray', prompt:'配膳盆を取る', active: tasks.talkedOkami && !tasks.gotTray });
+    push({ type:'portal', id:'toHall', area:'lobby', x:13.6, y:8.0, kind:'signHall', prompt:'客室廊下へ', active: true });
+    push({ type:'item', id:'phone', area:'lobby', x:4.3, y:6.4, kind:'phone', prompt:'黒電話に出る', active: tasks.talkedMaid && !tasks.answeredPhone });
+
+    push({ type:'portal', id:'toLobby', area:'hall', x:1.8, y:7.8, kind:'signHall', prompt:'帳場へ戻る', active: true });
+    push({ type:'portal', id:'toRoom201', area:'hall', x:5.0, y:3.6, kind:'door', prompt:'201号室へ入る', active: true });
+    push({ type:'portal', id:'toBath', area:'hall', x:18.8, y:3.6, kind:'bathSign', prompt:'浴場前へ行く', active: true });
+    push({ type:'portal', id:'toArchive', area:'hall', x:14.0, y:7.3, kind:'archiveDoor', prompt:'北の宿帳庫へ', active: state.phase === 'night' });
+    push({ type:'npc', id:'maid', area:'hall', x:10.8, y:5.4, kind:'maid', prompt:'仲居・篠に話しかける', active: tasks.servedGuest && !tasks.talkedMaid });
+
+    push({ type:'portal', id:'room201Exit', area:'room201', x:1.6, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
+    push({ type:'npc', id:'guest', area:'room201', x:7.4, y:3.1, kind:'guest', prompt:'201号室の客に話しかける', active: tasks.gotTray && !tasks.servedGuest });
+
+    push({ type:'portal', id:'bathExit', area:'bath', x:1.6, y:5.0, kind:'bathSign', prompt:'廊下へ戻る', active: true });
+    push({ type:'item', id:'mirror', area:'bath', x:6.6, y:1.9, kind:'ghost', prompt:'鏡を調べる', active: tasks.answeredPhone && !tasks.checkedBath });
+
+    push({ type:'portal', id:'archiveExit', area:'archive', x:1.6, y:5.0, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
+    push({ type:'ghost', id:'ghost', area:'archive', x:9.8, y:2.6, kind:'ghost', prompt:'', active: state.phase === 'night' && !tasks.gotNotebook });
+    push({ type:'item', id:'notebook', area:'archive', x:4.6, y:4.2, kind:'notebook', prompt:'青いノートを拾う', active: tasks.checkedBath && !tasks.gotNotebook });
+
+    return list.filter(s => s.active);
   }
 
-  function saveGame() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(getSaveData()));
-    setStatus('保存した / v13');
-  }
-
-  function loadGame() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) { setStatus('保存データなし'); return false; }
-    try {
-      const data = JSON.parse(raw);
-      Object.assign(player, data.player || {});
-      Object.assign(tasks, data.tasks || {});
-      state.phase = data.phase || 'day';
-      state.day = data.day || 1;
-      dayLabel.textContent = 'DAY ' + state.day;
-      phaseLabel.textContent = state.phase === 'night' ? '深夜調査' : '昼勤務';
-      areaLabel.textContent = currentArea().name;
-      state.ending = false;
-      state.inDialogue = false;
-      dialogueBox.classList.add('hidden');
-      endingScreen.classList.add('hidden');
-      setObjective(data.objective || '続きから再開');
-      setStatus('ロードした / v13');
-      return true;
-    } catch (e) {
-      setStatus('ロード失敗');
-      return false;
+  function getNearbyInteraction() {
+    const sprites = activeSprites();
+    let nearest = null;
+    let nearestDist = 999;
+    for (const s of sprites) {
+      const dx = s.x - player.x;
+      const dy = s.y - player.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1.25) continue;
+      const ang = normalizeAngle(Math.atan2(dy, dx) - player.a);
+      if (Math.abs(ang) > 0.75) continue;
+      if (d < nearestDist) { nearest = s; nearestDist = d; }
     }
+    return nearest;
   }
 
-  function changeArea(areaId, spawnKey) {
-    const area = areas[areaId];
-    if (!area) return;
-    player.area = areaId;
-    const sp = area.spawns[spawnKey] || Object.values(area.spawns)[0];
-    player.x = sp.x; player.y = sp.y; player.a = sp.a;
-    areaLabel.textContent = area.name;
-    state.areaFlash = 1.0;
-    setStatus('エリア移動: ' + area.name);
+  function act() {
+    if (state.ending) return;
+    if (state.inDialogue) { advanceDialogue(); return; }
+    const target = getNearbyInteraction();
+    if (!target) return;
+    scriptedStepAction(target.id);
   }
 
-  function startNew() {
-    player.area = 'lobby';
-    changeArea('lobby', 'start');
-    Object.keys(tasks).forEach(k => tasks[k] = false);
-    state.phase = 'day';
-    state.day = 1;
-    state.ending = false;
-    state.inDialogue = false;
-    dayLabel.textContent = 'DAY 1';
-    phaseLabel.textContent = '昼勤務';
-    endingScreen.classList.add('hidden');
-    dialogueBox.classList.add('hidden');
-    setObjective('女将に話しかける');
-    setStatus('起動完了 / v13');
-    showDialogue([
-      ['記録', '今日は住み込み初日。まずは帳場で女将の指示を受ける。'],
-      ['記録', '昼は仕事、夜は調査。客の話が、そのまま事件の入口になる。']
-    ]);
+  function normalizeAngle(a) {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
   }
 
-  function outlineRect(x, y, w, h, fill, stroke = '#111') { return { x, y, w, h, fill, stroke }; }
-  function drawShapes(ctx2, shapes) {
-    for (const s of shapes) {
-      ctx2.fillStyle = s.stroke; ctx2.fillRect(s.x - 1, s.y - 1, s.w + 2, s.h + 2);
-      ctx2.fillStyle = s.fill; ctx2.fillRect(s.x, s.y, s.w, s.h);
-    }
+  function createTextures() {
+    const make = (draw) => {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 64;
+      const x = c.getContext('2d');
+      x.imageSmoothingEnabled = false;
+      draw(x, c.width, c.height);
+      return c;
+    };
+    return {
+      '#': make((x,w,h) => {
+        x.fillStyle = '#4d3725'; x.fillRect(0,0,w,h);
+        for (let i=0;i<8;i++) {
+          x.fillStyle = i%2 ? '#6c4e33' : '#573c28';
+          x.fillRect(i*8,0,4,h);
+        }
+        x.fillStyle = 'rgba(0,0,0,.15)';
+        for (let i=0;i<8;i++) x.fillRect(0, i*8, w, 1);
+      }),
+      W: make((x,w,h) => {
+        x.fillStyle = '#5b3f2b'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#d8cab3'; x.fillRect(7,7,w-14,h-14);
+        x.fillStyle = '#70472f'; x.fillRect(0,0,6,h);
+        x.fillRect(w-6,0,6,h);
+        x.fillRect(0,0,w,6);
+        x.fillRect(0,h-6,w,6);
+        x.fillStyle = 'rgba(0,0,0,.08)';
+        x.fillRect(w/2-2, 7, 4, h-14);
+      }),
+      D: make((x,w,h) => {
+        x.fillStyle = '#6a2f29'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#a65f55'; x.fillRect(8,8,w-16,h-16);
+        x.fillStyle = '#e6d1a2'; x.fillRect(w-14,h/2,4,4);
+        x.fillStyle = 'rgba(0,0,0,.15)';
+        x.fillRect(w/2-1, 8, 2, h-16);
+      }),
+      B: make((x,w,h) => {
+        x.fillStyle = '#43525a'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#8ca6b0'; x.fillRect(8,8,w-16,h-16);
+        x.fillStyle = 'rgba(255,255,255,.16)'; x.fillRect(12,12,w-24,6);
+      }),
+      N: make((x,w,h) => {
+        x.fillStyle = '#2c3338'; x.fillRect(0,0,w,h);
+        for (let i=0;i<5;i++) {
+          x.fillStyle = i%2 ? '#566067' : '#3f494f';
+          x.fillRect(8+i*10, 8, 7, h-16);
+        }
+      }),
+      S: make((x,w,h) => {
+        x.fillStyle = '#7f5d2a'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#d1bb89'; x.fillRect(10,12,w-20,h-24);
+        x.fillStyle = '#694720'; x.fillRect(0,0,w,6);
+        x.fillRect(0,h-6,w,6);
+      }),
+      T: make((x,w,h) => {
+        x.fillStyle = '#3b2f24'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#8a6637'; x.fillRect(8,14,w-16,h-18);
+        x.fillStyle = '#c8a76a'; x.fillRect(12,18,w-24,h-26);
+      }),
+      C: make((x,w,h) => {
+        x.fillStyle = '#3a2a1c'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#62442a'; x.fillRect(4,10,w-8,h-10);
+      }),
+      M: make((x,w,h) => {
+        x.fillStyle = '#4d5c64'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#b0c8d1'; x.fillRect(8,8,w-16,h-16);
+      }),
+      K: make((x,w,h) => {
+        x.fillStyle = '#3c3027'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#625449'; x.fillRect(6,6,w-12,h-12);
+      }),
+    };
   }
 
   function makeSprite(kind) {
     const c = document.createElement('canvas');
-    c.width = 88; c.height = 132;
+    c.width = 96; c.height = 144;
     const x = c.getContext('2d');
     x.imageSmoothingEnabled = false;
-    x.clearRect(0, 0, 88, 132);
+    const o = (px, py, w, h, fill, stroke = '#111') => {
+      x.fillStyle = stroke; x.fillRect(px-1, py-1, w+2, h+2);
+      x.fillStyle = fill; x.fillRect(px, py, w, h);
+    };
     if (kind === 'okami') {
-      drawShapes(x, [
-        outlineRect(28, 10, 32, 18, '#2b2430'), outlineRect(31, 22, 26, 18, '#f1e3d0'),
-        outlineRect(22, 40, 44, 46, '#5b3445'), outlineRect(16, 46, 12, 22, '#f1e3d0'),
-        outlineRect(60, 46, 12, 22, '#f1e3d0'), outlineRect(30, 54, 28, 10, '#d1a267'),
-        outlineRect(26, 86, 14, 24, '#2d2432'), outlineRect(48, 86, 14, 24, '#2d2432')
-      ]);
+      o(32, 12, 30, 16, '#2b2430');
+      o(35, 24, 24, 18, '#f1e1cb');
+      o(24, 42, 46, 48, '#5d3346');
+      o(18, 46, 10, 24, '#f1e1cb');
+      o(68, 46, 10, 24, '#f1e1cb');
+      o(32, 55, 28, 9, '#d1a267');
+      o(28, 90, 14, 28, '#2f2434');
+      o(52, 90, 14, 28, '#2f2434');
+      o(38, 30, 4, 4, '#111'); o(51, 30, 4, 4, '#111');
+      o(41, 38, 10, 2, '#8d5841', '#8d5841');
     } else if (kind === 'guest') {
-      drawShapes(x, [
-        outlineRect(28, 10, 32, 18, '#2a2733'), outlineRect(32, 22, 24, 16, '#f0e0cb'),
-        outlineRect(24, 40, 40, 42, '#7c67b3'), outlineRect(18, 44, 10, 20, '#f0e0cb'),
-        outlineRect(60, 44, 10, 20, '#f0e0cb'), outlineRect(30, 82, 14, 24, '#5d4a9c'),
-        outlineRect(48, 82, 14, 24, '#5d4a9c'), outlineRect(26, 28, 36, 6, '#111')
-      ]);
-    } else if (kind === 'worker') {
-      drawShapes(x, [
-        outlineRect(26, 8, 36, 14, '#f5f5f5'), outlineRect(32, 20, 24, 8, '#dcdcdc'),
-        outlineRect(33, 28, 22, 18, '#f3dfc7'), outlineRect(24, 46, 40, 44, '#2150a0'),
-        outlineRect(18, 50, 10, 24, '#18335c'), outlineRect(60, 50, 10, 24, '#18335c'),
-        outlineRect(57, 50, 14, 8, '#79d6b5'), outlineRect(28, 90, 14, 24, '#132440'),
-        outlineRect(48, 90, 14, 24, '#132440'), outlineRect(12, 48, 18, 12, '#f2f2f2'),
-        outlineRect(58, 44, 18, 14, '#cb4141'), outlineRect(28, 42, 2, 30, '#7a5b41'),
-        outlineRect(58, 40, 2, 32, '#7a5b41')
-      ]);
+      o(32, 12, 30, 16, '#252732');
+      o(35, 24, 24, 18, '#efddc9');
+      o(24, 42, 46, 44, '#6d68b3');
+      o(18, 46, 10, 22, '#efddc9');
+      o(68, 46, 10, 22, '#efddc9');
+      o(28, 86, 14, 28, '#50489a');
+      o(52, 86, 14, 28, '#50489a');
+      o(38, 30, 4, 4, '#111'); o(51, 30, 4, 4, '#111');
+      o(38, 38, 16, 2, '#8d5841', '#8d5841');
+    } else if (kind === 'maid') {
+      o(31, 10, 34, 14, '#f5f5f5');
+      o(36, 22, 24, 18, '#efdcc7');
+      o(25, 40, 44, 46, '#34557c');
+      o(19, 44, 10, 24, '#efdcc7');
+      o(69, 44, 10, 24, '#efdcc7');
+      o(30, 86, 14, 28, '#1a2e46');
+      o(50, 86, 14, 28, '#1a2e46');
+      o(39, 29, 4, 4, '#111'); o(52, 29, 4, 4, '#111');
+      o(40, 37, 12, 2, '#845645', '#845645');
+    } else if (kind === 'ghost') {
+      x.globalAlpha = .7;
+      o(32, 12, 30, 18, '#5c6f7f');
+      o(34, 24, 26, 20, '#e3e9ee');
+      o(26, 44, 42, 52, '#d9e4ee');
+      o(18, 48, 10, 26, '#d9e4ee');
+      o(68, 48, 10, 26, '#d9e4ee');
+      o(34, 30, 6, 6, '#111'); o(54, 30, 6, 6, '#111');
+      o(40, 40, 14, 2, '#7a8b98', '#7a8b98');
+      x.globalAlpha = 1;
     } else if (kind === 'tray') {
-      drawShapes(x, [outlineRect(24, 58, 40, 10, '#5d3d28'), outlineRect(28, 52, 12, 8, '#7bd0bd'), outlineRect(48, 52, 10, 8, '#f0e0cb')]);
-    } else if (kind === 'ledger') {
-      drawShapes(x, [outlineRect(24, 34, 40, 56, '#ece2d0'), outlineRect(24, 34, 10, 56, '#9f3b3b')]);
-      x.fillStyle = '#7a664f'; x.fillRect(38, 48, 16, 3); x.fillRect(38, 58, 16, 3); x.fillRect(38, 68, 12, 3);
-    } else if (kind === 'door201') {
-      drawShapes(x, [outlineRect(18, 16, 52, 80, '#9d7a56'), outlineRect(24, 22, 40, 68, '#d1c3ad'), outlineRect(56, 54, 4, 4, '#d0b35b')]);
-      x.fillStyle = '#281f18'; x.font = 'bold 18px sans-serif'; x.textAlign = 'center'; x.fillText('201', 44, 48);
-    } else if (kind === 'northDoor') {
-      drawShapes(x, [outlineRect(18, 16, 52, 80, '#56646b'), outlineRect(24, 22, 40, 68, '#93a1a7')]);
-      x.fillStyle = '#12181d'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.fillText('北', 44, 48); x.fillText('裏廊下', 44, 70);
-    } else if (kind === 'hallDoor') {
-      drawShapes(x, [outlineRect(18, 16, 52, 80, '#9e7a57'), outlineRect(24, 22, 40, 68, '#d1c1a6')]);
-      x.fillStyle = '#281f18'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.fillText('客室', 44, 48); x.fillText('廊下', 44, 70);
-    } else if (kind === 'lantern') {
-      drawShapes(x, [outlineRect(30, 8, 4, 12, '#7a5d38'), outlineRect(18, 20, 36, 42, '#f0c873'), outlineRect(16, 18, 40, 4, '#9b452c'), outlineRect(16, 62, 40, 4, '#9b452c')]);
-      x.fillStyle = 'rgba(255,245,210,0.85)'; x.fillRect(28, 28, 16, 16);
-    } else if (kind === 'signLobby') {
-      drawShapes(x, [outlineRect(16, 24, 56, 32, '#d8ccb6'), outlineRect(42, 56, 4, 24, '#6c5137')]);
-      x.fillStyle = '#2b231c'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.fillText('帳場', 44, 46);
-    } else if (kind === 'sign203') {
-      drawShapes(x, [outlineRect(18, 16, 52, 80, '#7f6950'), outlineRect(24, 22, 40, 68, '#a58c70')]);
-      x.fillStyle = '#1e1814'; x.font = 'bold 18px sans-serif'; x.textAlign = 'center'; x.fillText('203', 44, 48);
-      x.fillStyle = '#b73d3d'; x.fillRect(24, 24, 40, 4);
+      o(18, 72, 60, 10, '#744d2b');
+      o(22, 54, 18, 18, '#e3e0d7');
+      o(56, 54, 18, 18, '#e3e0d7');
+      o(28, 60, 6, 4, '#7f9eb7');
+      o(62, 60, 6, 4, '#7f9eb7');
+    } else if (kind === 'phone') {
+      o(25, 76, 46, 20, '#1f1f22');
+      o(30, 62, 36, 16, '#27282d');
+      o(42, 56, 12, 8, '#4c4d57');
+    } else if (kind === 'notebook') {
+      o(28, 58, 40, 52, '#2a4f86');
+      o(34, 64, 26, 38, '#d4e0f0');
+      o(32, 58, 4, 52, '#183055');
+    } else if (kind === 'bathSign') {
+      o(28, 24, 8, 84, '#6a5138');
+      o(36, 32, 36, 48, '#bfa56c');
+      o(42, 42, 24, 8, '#5f3c2a');
     }
     return c;
   }
 
-  function makeTexture(kind) {
-    const c = document.createElement('canvas');
-    c.width = 32; c.height = 32;
-    const x = c.getContext('2d');
-    x.imageSmoothingEnabled = false;
-    if (kind === 'wood') {
-      x.fillStyle = '#563922'; x.fillRect(0, 0, 32, 32);
-      for (let i = 0; i < 32; i += 8) {
-        x.fillStyle = i % 16 === 0 ? '#7f5635' : '#69462d'; x.fillRect(i, 0, 6, 32);
-      }
-      x.fillStyle = 'rgba(34,20,12,0.45)'; for (let i = 0; i < 32; i += 4) x.fillRect(i, 0, 1, 32);
-    } else if (kind === 'shoji') {
-      x.fillStyle = '#d8ccb5'; x.fillRect(0, 0, 32, 32);
-      x.fillStyle = '#826646';
-      for (let i = 0; i < 32; i += 8) { x.fillRect(i, 0, 1, 32); x.fillRect(0, i, 32, 1); }
-      x.fillStyle = 'rgba(255,240,210,0.14)'; x.fillRect(0, 0, 32, 32);
-    } else if (kind === 'door') {
-      x.fillStyle = '#9f7a56'; x.fillRect(0, 0, 32, 32); x.fillStyle = '#ccbea6'; x.fillRect(4, 4, 24, 24);
-      x.fillStyle = '#715637'; x.fillRect(15, 4, 2, 24); x.fillStyle = '#d3b55e'; x.fillRect(24, 15, 3, 3);
-    } else {
-      x.fillStyle = '#4b565d'; x.fillRect(0, 0, 32, 32); x.fillStyle = '#7f8e95'; x.fillRect(4, 4, 24, 24);
-      x.fillStyle = '#324047'; x.fillRect(0, 14, 32, 4);
-    }
-    return x.getImageData(0, 0, 32, 32).data;
+  function shadeColor(rgb, factor) {
+    return `rgb(${Math.floor(rgb[0]*factor)},${Math.floor(rgb[1]*factor)},${Math.floor(rgb[2]*factor)})`;
   }
 
-  const textures = {
-    '#': makeTexture('wood'),
-    'W': makeTexture('wood'),
-    'S': makeTexture('shoji'),
-    'D': makeTexture('door'),
-  };
-
-  const sprites = {
-    okami: makeSprite('okami'), guest: makeSprite('guest'), worker: makeSprite('worker'),
-    tray: makeSprite('tray'), ledger: makeSprite('ledger'), door201: makeSprite('door201'), northDoor: makeSprite('northDoor'),
-    hallDoor: makeSprite('hallDoor'), lantern: makeSprite('lantern'), signLobby: makeSprite('signLobby'), sign203: makeSprite('sign203')
-  };
-
-  const decor = [
-    { area:'lobby', id:'lobbySign', x:1.6, y:8.9, r:.6, sprite:'signLobby' },
-    { area:'lobby', id:'lan1', x:9.7, y:1.8, r:.65, sprite:'lantern' },
-    { area:'lobby', id:'lan2', x:12.3, y:1.8, r:.65, sprite:'lantern' },
-    { area:'hall', id:'lanh1', x:6.0, y:3.0, r:.6, sprite:'lantern' },
-    { area:'hall', id:'lanh2', x:12.0, y:3.0, r:.6, sprite:'lantern' },
-    { area:'hall', id:'lanh3', x:18.0, y:3.0, r:.6, sprite:'lantern' },
-    { area:'north', id:'lanN1', x:5.4, y:2.1, r:.6, sprite:'lantern' },
-    { area:'north', id:'lanN2', x:13.4, y:2.1, r:.6, sprite:'lantern' },
-  ];
-
-  const interactives = [
-    {
-      id:'okami', area:'lobby', x:4.2, y:8.8, r:.85, sprite:'okami', label:'女将', phase:'day',
-      visible:()=>true,
-      onInteract(){
-        if (!tasks.talkedToOkami) {
-          tasks.talkedToOkami = true;
-          setObjective('配膳盆を取って201号室へ向かう');
-          showDialogue([
-            ['女将', 'まずは201号室へお茶を持っていって。今日の仕事はそこから。'],
-            ['女将', '客室廊下は右の戸の先。終わったら帳場に戻っておいで。']
-          ]);
-        } else if (tasks.servedTea && !tasks.readLedger) {
-          showDialogue([
-            ['女将', '客は何か言っていたかい。'],
-            ['女将', '帳場ノートを見てきな。昔から203のことだけ、帳面の書き方が変なんだよ。']
-          ]);
-        } else if (tasks.readLedger && !tasks.startedNight) {
-          tasks.startedNight = true;
-          state.phase = 'night';
-          phaseLabel.textContent = '深夜調査';
-          setObjective('客室廊下から北の裏廊下へ向かう');
-          showDialogue([
-            ['女将', '表の仕事は終わり。ここからは見回りだ。'],
-            ['女将', '北の裏廊下に、今日もいないはずの客が出る。']
-          ]);
-        } else {
-          showDialogue([['女将', state.phase === 'day' ? 'まずは201号室へ。' : '北の裏廊下へ。もう客の声は仕事じゃなく、手掛かりになる。']]);
-        }
-      }
-    },
-    {
-      id:'tray', area:'lobby', x:7.0, y:8.8, r:.6, sprite:'tray', label:'配膳盆', phase:'day',
-      visible:()=>tasks.talkedToOkami && !tasks.gotTray,
-      onInteract(){
-        tasks.gotTray = true;
-        setObjective('客室廊下へ移動し、201号室へ入る');
-        showDialogue([['記録', '湯呑みの載った盆を持った。ぬるいのに、指先だけ熱い。']]);
-      }
-    },
-    {
-      id:'hallDoorFromLobby', area:'lobby', x:17.2, y:8.9, r:.95, sprite:'hallDoor', label:'客室廊下へ', phase:'any',
-      visible:()=>true,
-      onInteract(){ changeArea('hall', 'fromLobby'); }
-    },
-    {
-      id:'lobbyDoorFromHall', area:'hall', x:2.0, y:9.1, r:.95, sprite:'signLobby', label:'帳場へ戻る', phase:'any',
-      visible:()=>true,
-      onInteract(){ changeArea('lobby', 'fromHall'); }
-    },
-    {
-      id:'door201', area:'hall', x:18.7, y:5.5, r:.95, sprite:'door201', label:'201号室', phase:'any',
-      visible:()=>true,
-      onInteract(){
-        if (!tasks.gotTray) {
-          showDialogue([['記録', '先に帳場でお茶を受け取る。']]);
-          return;
-        }
-        changeArea('room201', 'door');
-      }
-    },
-    {
-      id:'guest201', area:'room201', x:8.6, y:4.9, r:.85, sprite:'guest', label:'201号室の客', phase:'day',
-      visible:()=>tasks.gotTray && !tasks.servedTea,
-      onInteract(){
-        tasks.servedTea = true;
-        tasks.heardRumor = true;
-        setObjective('帳場に戻って帳面を調べる');
-        showDialogue([
-          ['宿泊客', 'ありがとうございます。……ところで、203号室って今も使ってますか。'],
-          ['宿泊客', 'さっき廊下で、誰もいない部屋から咳払いが聞こえたんです。'],
-          ['宿泊客', 'しかも足音だけ、一拍遅れて追いかけてくるみたいで。']
-        ]);
-      }
-    },
-    {
-      id:'roomExit', area:'room201', x:1.8, y:5.4, r:.95, sprite:'door201', label:'客室廊下へ戻る', phase:'any',
-      visible:()=>true,
-      onInteract(){ changeArea('hall', 'fromRoom'); }
-    },
-    {
-      id:'ledger', area:'lobby', x:9.0, y:8.8, r:.65, sprite:'ledger', label:'帳場ノート', phase:'day',
-      visible:()=>tasks.heardRumor && !tasks.readLedger,
-      onInteract(){
-        tasks.readLedger = true;
-        setObjective('女将に報告する');
-        showDialogue([
-          ['帳場ノート', '「203: 宿帳なし。だが灯りは毎晩落ちる」'],
-          ['帳場ノート', '「白旗の誘導員は、客を外へ出すのではなく、奥へ入れる」']
-        ]);
-      }
-    },
-    {
-      id:'northDoor', area:'hall', x:11.5, y:1.9, r:.95, sprite:'northDoor', label:'北の裏廊下', phase:'any',
-      visible:()=>true,
-      onInteract(){
-        if (!tasks.startedNight) {
-          showDialogue([['記録', '今はまだ昼勤務。夜の見回りが始まってから開く。']]);
-          return;
-        }
-        changeArea('north', 'entry');
-        setObjective('裏廊下の作業員に話を聞く');
-      }
-    },
-    {
-      id:'worker', area:'north', x:8.6, y:7.0, r:.9, sprite:'worker', label:'誘導員', phase:'night',
-      visible:()=>tasks.startedNight && !tasks.talkedWorker,
-      onInteract(){
-        tasks.talkedWorker = true;
-        setObjective('203号室の前を確認する');
-        showDialogue([
-          ['誘導員', '白旗なら進め。赤旗でも進め。ここでは戻る方向が消えている。'],
-          ['誘導員', '203の前に立つと、宿帳にいない客の息だけが先に届く。']
-        ]);
-      }
-    },
-    {
-      id:'room203', area:'north', x:15.5, y:5.5, r:.95, sprite:'sign203', label:'203号室', phase:'night',
-      visible:()=>tasks.startedNight,
-      onInteract(){
-        if (!tasks.talkedWorker) {
-          showDialogue([['記録', '先に裏廊下の作業員の話を聞く。']]);
-          return;
-        }
-        tasks.checked203 = true;
-        showDialogue([
-          ['記録', '戸を開けた瞬間、昼に歩いた客室廊下が、部屋の中から続いていた。'],
-          ['記録', '201の客の声、女将の声、誰の宿帳にもない咳払いが、同じ距離で重なっている。']
-        ], () => {
-          endGame('203号室の反転', '昼の仕事で聞いた違和感は、夜にはすべて旅館の構造そのものになっていた。宵宿は客を泊めるのではなく、噂ごと閉じ込めている。');
-        });
-      }
-    },
-    {
-      id:'northReturn', area:'north', x:2.0, y:7.6, r:.95, sprite:'northDoor', label:'客室廊下へ戻る', phase:'night',
-      visible:()=>true,
-      onInteract(){ changeArea('hall', 'fromNorth'); }
-    },
-  ];
-
-  function currentObjectiveTargetId() {
-    if (!tasks.talkedToOkami) return 'okami';
-    if (!tasks.gotTray) return 'tray';
-    if (!tasks.servedTea) return player.area === 'room201' ? 'guest201' : 'door201';
-    if (!tasks.readLedger) return player.area === 'lobby' ? 'ledger' : 'lobbyDoorFromHall';
-    if (!tasks.startedNight) return 'okami';
-    if (!tasks.talkedWorker) return player.area === 'north' ? 'worker' : 'northDoor';
-    if (!tasks.checked203) return player.area === 'north' ? 'room203' : 'northDoor';
-    return null;
-  }
-
-  function interactivesInArea(area) {
-    return interactives.filter(obj => obj.area === area && obj.visible() && (obj.phase === 'any' || obj.phase === state.phase));
-  }
-  function decorInArea(area) { return decor.filter(obj => obj.area === area); }
-
-  function getNearbyInteractive() {
-    const list = interactivesInArea(player.area);
-    let best = null;
-    for (const obj of list) {
-      const dx = obj.x - player.x, dy = obj.y - player.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > obj.r + 0.75) continue;
-      let rel = Math.atan2(dy, dx) - player.a;
-      while (rel < -Math.PI) rel += Math.PI * 2;
-      while (rel > Math.PI) rel -= Math.PI * 2;
-      if (Math.abs(rel) > 0.7) continue;
-      if (!best || dist < best.dist) best = { obj, dist };
-    }
-    return best ? best.obj : null;
-  }
-
-  function directionText(angle) {
-    if (Math.abs(angle) < 0.35) return '前方';
-    if (angle > 0.35 && angle < 1.2) return '前方右';
-    if (angle < -0.35 && angle > -1.2) return '前方左';
-    if (angle >= 1.2) return '右奥';
-    return '左奥';
-  }
-
-  function getActiveTarget() {
-    const targetId = currentObjectiveTargetId();
-    return interactives.find(obj => obj.id === targetId && obj.area === player.area && obj.visible() && (obj.phase === state.phase || obj.phase === 'any')) || null;
-  }
-
-  function updateObjectiveDisplay() {
-    const targetId = currentObjectiveTargetId();
-    const target = interactives.find(obj => obj.id === targetId && obj.visible() && (obj.phase === state.phase || obj.phase === 'any')) || null;
-    if (!target) { objectiveBox.textContent = state.objective; return; }
-    if (target.area !== player.area) {
-      objectiveBox.textContent = `目標: ${state.objective} / 現在地: ${currentArea().name} / 目的地: ${areas[target.area].name}`;
-      return;
-    }
-    let rel = Math.atan2(target.y - player.y, target.x - player.x) - player.a;
-    while (rel < -Math.PI) rel += Math.PI * 2;
-    while (rel > Math.PI) rel -= Math.PI * 2;
-    const dist = Math.hypot(target.x - player.x, target.y - player.y);
-    objectiveBox.textContent = `目標: ${state.objective} / ${directionText(rel)} / 約${dist.toFixed(1)}m`;
-  }
-
-  function sampleTexture(tex, u, v, brightness) {
-    const tx = (((u % 1) + 1) % 1 * 31) | 0;
-    const ty = (((v % 1) + 1) % 1 * 31) | 0;
-    const idx = (ty * 32 + tx) * 4;
-    return [Math.min(255, tex[idx] * brightness), Math.min(255, tex[idx + 1] * brightness), Math.min(255, tex[idx + 2] * brightness)];
-  }
-
-  function drawBackground() {
+  function drawScene(dt) {
     const area = currentArea();
-    const gradSky = g.createLinearGradient(0, 0, 0, OFF_H / 2);
-    gradSky.addColorStop(0, area.skyTop); gradSky.addColorStop(1, area.skyBottom);
-    g.fillStyle = gradSky; g.fillRect(0, 0, OFF_W, OFF_H / 2);
+    g.fillStyle = area.skyTop;
+    g.fillRect(0, 0, OFF_W, OFF_H / 2);
+    const skyGrad = g.createLinearGradient(0, 0, 0, OFF_H / 2);
+    skyGrad.addColorStop(0, area.skyTop);
+    skyGrad.addColorStop(1, area.skyBottom);
+    g.fillStyle = skyGrad;
+    g.fillRect(0, 0, OFF_W, OFF_H / 2);
 
-    const gradFloor = g.createLinearGradient(0, OFF_H / 2, 0, OFF_H);
-    gradFloor.addColorStop(0, area.floorA); gradFloor.addColorStop(1, area.floorB);
-    g.fillStyle = gradFloor; g.fillRect(0, OFF_H / 2, OFF_W, OFF_H / 2);
+    const floorGrad = g.createLinearGradient(0, OFF_H / 2, 0, OFF_H);
+    floorGrad.addColorStop(0, area.floorA);
+    floorGrad.addColorStop(1, area.floorB);
+    g.fillStyle = floorGrad;
+    g.fillRect(0, OFF_H / 2, OFF_W, OFF_H / 2);
 
-    g.fillStyle = 'rgba(255,255,255,0.035)';
-    for (let y = OFF_H / 2; y < OFF_H; y += 10) g.fillRect(0, y, OFF_W, 1);
-    g.fillStyle = 'rgba(0,0,0,0.14)';
-    for (let y = 0; y < OFF_H; y += 4) g.fillRect(0, y, OFF_W, 1);
-  }
+    drawFloorPattern(area);
 
-  function renderWorld() {
-    drawBackground();
     const zBuffer = new Array(OFF_W).fill(MAX_DEPTH);
 
     for (let x = 0; x < OFF_W; x++) {
-      const rayAngle = player.a - FOV / 2 + (x / OFF_W) * FOV;
-      const sin = Math.sin(rayAngle), cos = Math.cos(rayAngle);
-      let dist = 0.02, hit = false, hitX = 0, hitY = 0, tile = '#';
-      while (dist < MAX_DEPTH && !hit) {
-        hitX = player.x + cos * dist;
-        hitY = player.y + sin * dist;
-        tile = tileAt(hitX, hitY);
-        if (tile !== '.') hit = true; else dist += 0.02;
+      const cameraX = (x / OFF_W) - 0.5;
+      const rayAngle = player.a + cameraX * FOV;
+      const rayDirX = Math.cos(rayAngle);
+      const rayDirY = Math.sin(rayAngle);
+      let depth = 0.02;
+      let hit = null;
+      while (depth < MAX_DEPTH) {
+        const rx = player.x + rayDirX * depth;
+        const ry = player.y + rayDirY * depth;
+        const t = tileAt(rx, ry);
+        if (t !== '.') {
+          hit = { tile:t, x:rx, y:ry };
+          break;
+        }
+        depth += 0.02;
       }
-      const perp = Math.max(0.001, dist * Math.cos(rayAngle - player.a));
-      zBuffer[x] = perp;
-      const wallH = Math.min(OFF_H * 1.5, (OFF_H / perp) * 0.9);
-      const startY = ((OFF_H - wallH) / 2) | 0;
-      const tex = textures[tile] || textures['#'];
-      const fracX = hitX - Math.floor(hitX), fracY = hitY - Math.floor(hitY);
-      const useU = (fracX < 0.05 || fracX > 0.95) ? fracY : fracX;
-      const sideShade = (fracX < 0.05 || fracX > 0.95) ? 0.88 : 1.0;
-      const brightness = Math.max(0.22, (state.phase === 'night' ? 0.72 : 1.04) * sideShade * (1.55 - perp * 0.06));
-      for (let y = 0; y < wallH; y++) {
-        const v = y / wallH;
-        const [r, gg, b] = sampleTexture(tex, useU, v, brightness);
-        g.fillStyle = `rgb(${r|0},${gg|0},${b|0})`;
-        g.fillRect(x, startY + y, 1, 1);
-      }
-      g.fillStyle = `rgba(0,0,0,${Math.min(0.5, perp / MAX_DEPTH)})`;
-      g.fillRect(x, 0, 1, OFF_H);
+      if (!hit) continue;
+      zBuffer[x] = depth;
+      const corrected = depth * Math.cos(rayAngle - player.a);
+      const wallH = Math.min(OFF_H * 2, (OFF_H / Math.max(0.01, corrected)) * 0.92);
+      const y0 = Math.floor(OFF_H / 2 - wallH / 2);
+      const tex = textures[hit.tile] || textures['#'];
+      const fx = hit.x - Math.floor(hit.x);
+      const fy = hit.y - Math.floor(hit.y);
+      const texX = Math.floor(((fx > fy ? fx : fy) % 1) * tex.width);
+      g.drawImage(tex, texX, 0, 1, tex.height, x, y0, 1, wallH);
+      const shade = Math.min(.78, corrected / 18 + (state.phase === 'night' ? .12 : 0));
+      g.fillStyle = `rgba(0,0,0,${shade})`;
+      g.fillRect(x, y0, 1, wallH);
     }
 
-    const allSprites = [];
-    for (const obj of decorInArea(player.area)) allSprites.push({ ...obj, interactive:false });
-    for (const obj of interactivesInArea(player.area)) allSprites.push({ ...obj, interactive:true });
+    drawSprites(zBuffer);
+    drawAreaSigns(zBuffer);
+    if (state.phase === 'night') drawNightEffects(dt);
+  }
 
-    allSprites.sort((a, b) => {
-      const da = (a.x - player.x) ** 2 + (a.y - player.y) ** 2;
-      const db = (b.x - player.x) ** 2 + (b.y - player.y) ** 2;
-      return db - da;
-    });
+  function drawFloorPattern(area) {
+    for (let y = OFF_H/2; y < OFF_H; y += 4) {
+      g.fillStyle = y % 8 === 0 ? area.floorA : area.floorB;
+      g.fillRect(0, y, OFF_W, 1);
+    }
+    if (player.area === 'lobby' || player.area === 'hall' || player.area === 'room201') {
+      g.fillStyle = 'rgba(0,0,0,.08)';
+      for (let x = 0; x < OFF_W; x += 18) g.fillRect(x, OFF_H/2, 2, OFF_H/2);
+    }
+  }
 
-    const objectiveId = currentObjectiveTargetId();
-    for (const sp of allSprites) {
-      const dx = sp.x - player.x, dy = sp.y - player.y;
-      const dist = Math.hypot(dx, dy);
-      let rel = Math.atan2(dy, dx) - player.a;
-      while (rel < -Math.PI) rel += Math.PI * 2;
-      while (rel > Math.PI) rel -= Math.PI * 2;
-      if (Math.abs(rel) > FOV * 0.75 || dist < 0.2) continue;
-      const screenX = (0.5 + (rel / FOV)) * OFF_W;
-      const size = Math.min(180, (OFF_H / dist) * (sp.r * 0.95 + 0.6));
-      const screenY = OFF_H * 0.58 - size * 0.76;
-      const left = (screenX - size / 2) | 0;
-      const right = (screenX + size / 2) | 0;
+  function project(wx, wy) {
+    const dx = wx - player.x;
+    const dy = wy - player.y;
+    const dist = Math.hypot(dx, dy);
+    const angle = normalizeAngle(Math.atan2(dy, dx) - player.a);
+    if (Math.abs(angle) > FOV * 0.72) return null;
+    const corrected = dist * Math.cos(angle);
+    if (corrected <= 0.05) return null;
+    const screenX = (angle / FOV + 0.5) * OFF_W;
+    return { screenX, dist, corrected, angle };
+  }
+
+  function drawSpriteCanvas(proj, spriteCanvas, scaleFactor = 1) {
+    const h = Math.min(OFF_H * 1.6, (OFF_H / Math.max(0.08, proj.corrected)) * scaleFactor);
+    const w = h * (spriteCanvas.width / spriteCanvas.height);
+    const x = proj.screenX - w / 2;
+    const y = OFF_H / 2 - h * 0.55;
+    g.drawImage(spriteCanvas, x, y, w, h);
+    const darkness = Math.min(.72, proj.corrected / 16 + (state.phase === 'night' ? .08 : 0));
+    g.fillStyle = `rgba(0,0,0,${darkness})`;
+    g.fillRect(x, y, w, h);
+  }
+
+  function drawSprites(zBuffer) {
+    const sprites = activeSprites().filter(s => s.kind && spriteCanvases[s.kind]);
+    const projected = [];
+    for (const s of sprites) {
+      const proj = project(s.x, s.y);
+      if (!proj) continue;
+      projected.push({ ...s, proj });
+    }
+    projected.sort((a, b) => b.proj.corrected - a.proj.corrected);
+    for (const s of projected) {
+      const spriteCanvas = spriteCanvases[s.kind];
+      const h = Math.min(OFF_H * 1.6, (OFF_H / Math.max(0.08, s.proj.corrected)) * (s.kind === 'ghost' ? 1.18 : 1.05));
+      const w = h * (spriteCanvas.width / spriteCanvas.height);
+      const x = Math.floor(s.proj.screenX - w / 2);
+      const y = Math.floor(OFF_H / 2 - h * 0.55);
       let visible = false;
-      for (let sx = Math.max(0, left); sx < Math.min(OFF_W, right); sx++) {
-        if (dist < zBuffer[sx] + 0.15) { visible = true; break; }
+      const x0 = Math.max(0, x);
+      const x1 = Math.min(OFF_W - 1, Math.floor(x + w));
+      for (let sx = x0; sx <= x1; sx++) {
+        if (s.proj.corrected < zBuffer[sx] + 0.1) { visible = true; break; }
       }
       if (!visible) continue;
-      if (sp.id === objectiveId) {
-        g.fillStyle = 'rgba(255, 218, 96, 0.18)';
-        g.beginPath(); g.ellipse(screenX, screenY + size * 0.64, size * 0.44, size * 0.16, 0, 0, Math.PI * 2); g.fill();
-      }
-      g.drawImage(sprites[sp.sprite], left, screenY, size, size * 1.5);
-      if (sp.interactive && dist < 2.7) {
-        g.fillStyle = 'rgba(0,0,0,0.56)'; g.fillRect(screenX - 30, screenY - 16, 60, 12);
-        g.fillStyle = '#f4eee3'; g.font = '10px sans-serif'; g.textAlign = 'center'; g.fillText(sp.label, screenX, screenY - 7);
-      }
+      drawSpriteCanvas(s.proj, spriteCanvas, s.kind === 'ghost' ? 1.18 : 1.05);
     }
+  }
 
-    g.fillStyle = 'rgba(0,0,0,0.28)';
-    g.fillRect(0, 0, OFF_W, 4); g.fillRect(0, OFF_H - 4, OFF_W, 4);
-    g.fillStyle = 'rgba(255,255,255,0.66)';
-    g.fillRect(OFF_W/2 - 1, OFF_H/2 - 10, 2, 20); g.fillRect(OFF_W/2 - 10, OFF_H/2 - 1, 20, 2);
+  function drawAreaSigns(zBuffer) {
+    const signs = currentArea().signs || [];
+    for (const sign of signs) {
+      const proj = project(sign.x, sign.y);
+      if (!proj) continue;
+      const h = Math.min(42, (OFF_H / Math.max(0.1, proj.corrected)) * 0.3);
+      const w = sign.text.length * 8 + 16;
+      const x = proj.screenX - w / 2;
+      const y = OFF_H / 2 - h - 4;
+      if (proj.corrected > zBuffer[Math.max(0, Math.min(OFF_W - 1, Math.floor(proj.screenX)))] + .2) continue;
+      g.fillStyle = 'rgba(10,8,8,.85)';
+      g.fillRect(x, y, w, h);
+      g.strokeStyle = '#d5bc87';
+      g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      g.fillStyle = '#f5efe5';
+      g.font = '12px sans-serif';
+      g.textAlign = 'center';
+      g.fillText(sign.text, x + w / 2, y + h / 2 + 4);
+    }
+  }
 
+  function drawNightEffects(dt) {
+    g.fillStyle = 'rgba(6, 12, 20, 0.24)';
+    g.fillRect(0, 0, OFF_W, OFF_H);
+    g.fillStyle = 'rgba(255,255,255,0.03)';
+    for (let i = 0; i < 22; i++) {
+      const x = ((i * 37 + performance.now() * 0.03) % OFF_W) | 0;
+      const y = ((i * 17 + performance.now() * 0.02) % OFF_H) | 0;
+      g.fillRect(x, y, 1, 1);
+    }
+    if (state.step >= 6) {
+      const flick = (Math.sin(performance.now() * 0.013) * 0.5 + 0.5) * 0.18;
+      g.fillStyle = `rgba(255,255,255,${flick})`;
+      g.fillRect(0, 0, OFF_W, 3);
+    }
+  }
+
+  function drawFrame(dt) {
+    state.pulse += dt;
+    if (state.areaFlash > 0) state.areaFlash = Math.max(0, state.areaFlash - dt * 1.6);
+    drawScene(dt);
     if (state.areaFlash > 0) {
-      g.fillStyle = `rgba(255,240,190,${state.areaFlash * 0.12})`;
-      g.fillRect(0, 0, OFF_W, OFF_H);
+      g.fillStyle = `rgba(255, 236, 189, ${state.areaFlash * 0.18})`;
+      g.fillRect(0,0,OFF_W,OFF_H);
     }
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
   }
 
-  function renderMiniMap() {
-    const area = currentArea();
-    const map = area.map;
-    const scale = Math.min(mapCanvas.width / map[0].length, mapCanvas.height / map.length);
-    mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
-    mapCtx.fillStyle = '#11131b'; mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
-    for (let y = 0; y < map.length; y++) {
-      for (let x = 0; x < map[0].length; x++) {
-        const t = map[y][x];
-        mapCtx.fillStyle = t === '.' ? '#2b302d' : (t === 'S' ? '#c8bda4' : t === 'D' ? '#a58561' : '#65452c');
-        mapCtx.fillRect(x * scale, y * scale, scale - 1, scale - 1);
-      }
+  function update(dt) {
+    if (!state.inDialogue && !state.menuOpen && !state.ending) {
+      const speed = player.speed * (keys.shift ? 1.34 : 1);
+      const moveForward = (keys.w ? 1 : 0) - (keys.s ? 1 : 0) + (-moveInput.y);
+      const moveSide = (keys.d ? 1 : 0) - (keys.a ? 1 : 0) + moveInput.x;
+      const lookTurn = lookInput.dx * 0.0042;
+      player.a += lookTurn;
+      lookInput.dx = 0;
+      const sin = Math.sin(player.a), cos = Math.cos(player.a);
+      const vx = (cos * moveForward + Math.cos(player.a + Math.PI / 2) * moveSide) * speed * dt;
+      const vy = (sin * moveForward + Math.sin(player.a + Math.PI / 2) * moveSide) * speed * dt;
+      tryMove(player.x + vx, player.y + vy);
     }
-    const targetId = currentObjectiveTargetId();
-    for (const it of interactives) {
-      if (it.area !== player.area || !it.visible() || (it.phase !== state.phase && it.phase !== 'any')) continue;
-      mapCtx.fillStyle = it.id === targetId ? '#ffd86a' : '#6cd5b5';
-      mapCtx.fillRect((it.x - 0.15) * scale, (it.y - 0.15) * scale, scale * 0.3, scale * 0.3);
-    }
-    mapCtx.fillStyle = '#ff5d5d';
-    mapCtx.beginPath(); mapCtx.arc(player.x * scale, player.y * scale, 3, 0, Math.PI * 2); mapCtx.fill();
-    mapCtx.strokeStyle = '#ffffff';
-    mapCtx.beginPath();
-    mapCtx.moveTo(player.x * scale, player.y * scale);
-    mapCtx.lineTo((player.x + Math.cos(player.a) * 0.8) * scale, (player.y + Math.sin(player.a) * 0.8) * scale);
-    mapCtx.stroke();
-  }
 
-  function updatePrompt() {
-    if (state.inDialogue || state.ending) { promptBox.classList.add('hidden'); return; }
-    state.nearby = getNearbyInteractive();
-    if (state.nearby) {
-      promptBox.textContent = `ACT / E : ${state.nearby.label}`;
+    const n = (!state.inDialogue && !state.ending) ? getNearbyInteraction() : null;
+    state.nearby = n;
+    if (n && n.prompt) {
+      promptBox.textContent = n.prompt;
       promptBox.classList.remove('hidden');
     } else {
       promptBox.classList.add('hidden');
     }
+
+    drawMiniMap();
+    drawFrame(dt);
   }
 
-  function interact() {
-    if (state.ending) return;
-    if (state.inDialogue) { advanceDialogue(); return; }
-    if (state.nearby && typeof state.nearby.onInteract === 'function') state.nearby.onInteract();
+  function tryMove(nx, ny) {
+    if (!isSolid(nx, player.y)) player.x = nx;
+    if (!isSolid(player.x, ny)) player.y = ny;
   }
 
   function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(320, window.innerWidth);
-    const h = Math.max(480, window.innerHeight);
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
-    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-    ctx.imageSmoothingEnabled = false;
+    canvas.width = Math.floor(window.innerWidth * Math.min(window.devicePixelRatio || 1, 2));
+    canvas.height = Math.floor(window.innerHeight * Math.min(window.devicePixelRatio || 1, 2));
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
   }
 
-  function update(dt) {
-    if (!state.inDialogue && !state.ending) {
-      let moveX = 0, moveY = 0;
-      if (keys.w) moveY += 1; if (keys.s) moveY -= 1; if (keys.a) moveX -= 1; if (keys.d) moveX += 1;
-      moveX += moveInput.x; moveY += moveInput.y;
-      const len = Math.hypot(moveX, moveY) || 1;
-      moveX /= len; moveY /= len;
-      const moveSpeed = player.speed * dt;
-      const nx = player.x + (Math.cos(player.a) * moveY + Math.cos(player.a - Math.PI / 2) * moveX) * moveSpeed;
-      const ny = player.y + (Math.sin(player.a) * moveY + Math.sin(player.a - Math.PI / 2) * moveX) * moveSpeed;
-      moveAndCollide(nx, ny);
-      player.a += lookInput.dx * 0.0045;
-      lookInput.dx *= 0.72;
+  function handlePointerDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (movePad.contains(e.target)) return;
+    if (dialogueBox.contains(e.target)) return;
+    if (menuPanel.contains(e.target)) return;
+    if (x > rect.width * 0.45 && !state.inDialogue && !state.menuOpen) {
+      lookInput.active = true;
+      lookInput.lastX = e.clientX;
+      lookInput.pointerId = e.pointerId;
     }
-    state.pulse += dt * 2.4;
-    state.areaFlash = Math.max(0, state.areaFlash - dt * 1.6);
-    areaLabel.textContent = currentArea().name;
-    updatePrompt();
-    updateObjectiveDisplay();
   }
 
-  function draw() {
-    renderWorld();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
-    renderMiniMap();
+  function handlePointerMove(e) {
+    if (lookInput.active && e.pointerId === lookInput.pointerId) {
+      lookInput.dx += e.clientX - lookInput.lastX;
+      lookInput.lastX = e.clientX;
+    }
+  }
+
+  function handlePointerUp(e) {
+    if (lookInput.active && e.pointerId === lookInput.pointerId) {
+      lookInput.active = false;
+      lookInput.pointerId = null;
+    }
+  }
+
+  function setupMovePad() {
+    const center = () => {
+      moveKnob.style.left = '50%';
+      moveKnob.style.top = '50%';
+      moveInput.x = 0;
+      moveInput.y = 0;
+    };
+    center();
+
+    const updatePad = (clientX, clientY) => {
+      const rect = movePad.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      const max = rect.width * 0.32;
+      const dist = Math.hypot(dx, dy);
+      const clamped = dist > max ? max / dist : 1;
+      const ox = dx * clamped;
+      const oy = dy * clamped;
+      moveKnob.style.left = `${50 + (ox / (rect.width / 2)) * 50}%`;
+      moveKnob.style.top = `${50 + (oy / (rect.height / 2)) * 50}%`;
+      moveInput.x = ox / max;
+      moveInput.y = oy / max;
+    };
+
+    movePad.addEventListener('pointerdown', (e) => {
+      moveInput.active = true;
+      moveInput.pointerId = e.pointerId;
+      updatePad(e.clientX, e.clientY);
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (moveInput.active && e.pointerId === moveInput.pointerId) updatePad(e.clientX, e.clientY);
+    });
+    window.addEventListener('pointerup', (e) => {
+      if (moveInput.active && e.pointerId === moveInput.pointerId) {
+        moveInput.active = false;
+        moveInput.pointerId = null;
+        center();
+      }
+    });
+    window.addEventListener('pointercancel', () => {
+      moveInput.active = false;
+      moveInput.pointerId = null;
+      center();
+    });
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'w' || e.key === 'W') keys.w = true;
+    else if (e.key === 'a' || e.key === 'A') keys.a = true;
+    else if (e.key === 's' || e.key === 'S') keys.s = true;
+    else if (e.key === 'd' || e.key === 'D') keys.d = true;
+    else if (e.key === 'Shift') keys.shift = true;
+    else if (e.key === 'e' || e.key === 'E' || e.key === 'Enter') act();
+    else if (e.key === 'Escape') toggleMenu();
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'w' || e.key === 'W') keys.w = false;
+    else if (e.key === 'a' || e.key === 'A') keys.a = false;
+    else if (e.key === 's' || e.key === 'S') keys.s = false;
+    else if (e.key === 'd' || e.key === 'D') keys.d = false;
+    else if (e.key === 'Shift') keys.shift = false;
+  });
+
+  canvas.addEventListener('pointerdown', handlePointerDown);
+  window.addEventListener('pointermove', handlePointerMove);
+  window.addEventListener('pointerup', handlePointerUp);
+  window.addEventListener('pointercancel', handlePointerUp);
+
+  menuBtn.addEventListener('click', () => toggleMenu());
+  saveBtn.addEventListener('click', () => { saveGame(); toggleMenu(false); });
+  loadBtn.addEventListener('click', () => { loadGame(); toggleMenu(false); });
+  hudToggleBtn.addEventListener('click', () => { state.hudMinimal = !state.hudMinimal; applyHudState(); });
+  actBtn.addEventListener('click', act);
+  dialogueBox.addEventListener('click', act);
+  setupMovePad();
+  window.addEventListener('resize', resize);
+
+  resize();
+  applyHudState();
+  if (window.__YOINADO_CONTINUE__) {
+    if (!loadGame()) startNew();
+  } else {
+    startNew();
   }
 
   let last = performance.now();
@@ -792,78 +1049,7 @@
     const dt = Math.min(0.033, (now - last) / 1000);
     last = now;
     update(dt);
-    draw();
     requestAnimationFrame(loop);
   }
-
-  function bindKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = true;
-      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = true;
-      if (e.key === 'a' || e.key === 'A') keys.a = true;
-      if (e.key === 'd' || e.key === 'D') keys.d = true;
-      if (e.key === 'e' || e.key === 'E' || e.key === ' ') { e.preventDefault(); interact(); }
-    }, { passive:false });
-    window.addEventListener('keyup', (e) => {
-      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = false;
-      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = false;
-      if (e.key === 'a' || e.key === 'A') keys.a = false;
-      if (e.key === 'd' || e.key === 'D') keys.d = false;
-    });
-  }
-
-  function bindMovePad() {
-    const rectInfo = () => movePad.getBoundingClientRect();
-    function setStick(clientX, clientY) {
-      const rect = rectInfo();
-      const cx = rect.left + rect.width / 2; const cy = rect.top + rect.height / 2;
-      let dx = clientX - cx, dy = clientY - cy;
-      const max = rect.width * 0.34;
-      const len = Math.hypot(dx, dy) || 1;
-      if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-      moveKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-      moveInput.x = dx / max; moveInput.y = -dy / max;
-    }
-    movePad.addEventListener('pointerdown', (e) => {
-      moveInput.active = true; moveInput.pointerId = e.pointerId; movePad.setPointerCapture(e.pointerId); setStick(e.clientX, e.clientY);
-    });
-    movePad.addEventListener('pointermove', (e) => {
-      if (!moveInput.active || e.pointerId !== moveInput.pointerId) return; setStick(e.clientX, e.clientY);
-    });
-    function endStick(e) {
-      if (!moveInput.active || (e && e.pointerId !== moveInput.pointerId)) return;
-      moveInput.active = false; moveInput.pointerId = null; moveInput.x = 0; moveInput.y = 0; moveKnob.style.transform = 'translate(-50%, -50%)';
-    }
-    movePad.addEventListener('pointerup', endStick); movePad.addEventListener('pointercancel', endStick);
-  }
-
-  function bindLook() {
-    canvas.addEventListener('pointerdown', (e) => {
-      if (e.clientX < window.innerWidth * 0.45) return;
-      lookInput.active = true; lookInput.pointerId = e.pointerId; lookInput.lastX = e.clientX; canvas.setPointerCapture(e.pointerId);
-    });
-    canvas.addEventListener('pointermove', (e) => {
-      if (!lookInput.active || e.pointerId !== lookInput.pointerId) return;
-      const dx = e.clientX - lookInput.lastX; lookInput.lastX = e.clientX; lookInput.dx += dx;
-    });
-    function endLook(e) { if (!lookInput.active || e.pointerId !== lookInput.pointerId) return; lookInput.active = false; lookInput.pointerId = null; }
-    canvas.addEventListener('pointerup', endLook); canvas.addEventListener('pointercancel', endLook);
-  }
-
-  saveBtn.addEventListener('click', saveGame);
-  loadBtn.addEventListener('click', loadGame);
-  actBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); interact(); });
-  dialogueBox.addEventListener('pointerdown', () => { if (state.inDialogue) advanceDialogue(); });
-
-  bindKeyboard(); bindMovePad(); bindLook();
-  window.addEventListener('resize', resize);
-  resize();
-
-  if (window.__YOINADO_CONTINUE__) {
-    if (!loadGame()) startNew();
-  } else {
-    startNew();
-  }
-
   requestAnimationFrame(loop);
 })();
