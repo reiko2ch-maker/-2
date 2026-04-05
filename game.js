@@ -20,13 +20,17 @@ const moveStick = document.getElementById('moveStick');
 const actBtn = document.getElementById('actBtn');
 
 const startBtn = document.getElementById('startBtn');
+const titleInner = document.getElementById('titleInner');
 const endingRestartBtn = document.getElementById('endingRestartBtn');
 const continueBtn = document.getElementById('continueBtn');
+const howtoBtn = document.getElementById('howtoBtn');
+const closeHowtoBtn = document.getElementById('closeHowtoBtn');
+const howtoModal = document.getElementById('howtoModal');
 const saveBtn = document.getElementById('saveBtn');
 const loadBtn = document.getElementById('loadBtn');
 const restartBtn = document.getElementById('restartBtn');
 
-const STORAGE_KEY = 'yoinado_ps1_save_v2';
+const STORAGE_KEY = 'yoinado_ps1_save_v4';
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
 renderer.shadowMap.enabled = false;
@@ -1054,7 +1058,7 @@ function resetGame(showTitle = true) {
   world.lights.entrance.intensity = 0.9;
   world.lights.corridor.intensity = 0.45;
   setPhase('title');
-  setObjective('勤務開始を押す');
+  setObjective('タイトルから開始する');
   setStartedUI(false);
 }
 
@@ -1073,6 +1077,20 @@ function startGame() {
 function startNewGame() {
   resetGame(false);
   startGame();
+}
+
+window.__startGame = () => {
+  if (state.started) return;
+  if (howtoModal && !howtoModal.classList.contains('hidden')) return;
+  startNewGame();
+};
+
+function openHowto() {
+  howtoModal?.classList.remove('hidden');
+}
+
+function closeHowto() {
+  howtoModal?.classList.add('hidden');
 }
 
 function animate() {
@@ -1222,18 +1240,36 @@ function bindEvents() {
 
   const titleTapStart = (e) => {
     if (e) { e.preventDefault?.(); e.stopPropagation?.(); }
+    if (state.started) return;
+    if (howtoModal && !howtoModal.classList.contains('hidden')) return;
     startNewGame();
   };
-  startBtn.addEventListener('click', titleTapStart);
-  startBtn.addEventListener('touchend', titleTapStart, { passive: false });
-  titleScreen.addEventListener('click', (e) => {
-    if (e.target === titleScreen || e.target.closest('.title-inner')) titleTapStart(e);
+  const titleBackdropStart = (e) => {
+    const target = e?.target;
+    if (howtoModal && !howtoModal.classList.contains('hidden')) return;
+    if (target?.closest?.('.title-menu') || target?.closest?.('.howto-card') || target?.closest?.('#closeHowtoBtn')) {
+      return;
+    }
+    titleTapStart(e);
+  };
+  ['click','touchstart','touchend','pointerdown'].forEach((evt) => {
+    startBtn.addEventListener(evt, titleTapStart, { passive: false });
   });
-  titleScreen.addEventListener('touchend', (e) => {
-    if (e.target === titleScreen || e.target.closest('.title-inner')) titleTapStart(e);
-  }, { passive: false });
-  continueBtn?.addEventListener('click', (e) => { e.preventDefault(); loadGame(); });
-  continueBtn?.addEventListener('touchend', (e) => { e.preventDefault(); loadGame(); }, { passive: false });
+  ['click','touchstart','touchend'].forEach((evt) => {
+    continueBtn?.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation?.(); loadGame(); }, { passive: false });
+    howtoBtn?.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation?.(); openHowto(); }, { passive: false });
+    closeHowtoBtn?.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation?.(); closeHowto(); }, { passive: false });
+  });
+  ['click','touchstart','touchend'].forEach((evt) => {
+    titleScreen.addEventListener(evt, titleBackdropStart, { passive: false });
+    howtoModal?.addEventListener(evt, (e) => {
+      if (e.target === howtoModal) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        closeHowto();
+      }
+    }, { passive: false });
+  });
   endingRestartBtn.addEventListener('click', () => resetGame(true));
   saveBtn.addEventListener('click', saveGame);
   loadBtn.addEventListener('click', () => {
@@ -1257,7 +1293,7 @@ buildWorld();
 setPlayerStart();
 resize();
 bindEvents();
-setObjective('勤務開始を押す');
+setObjective('タイトルから開始する');
 setStartedUI(false);
 if (localStorage.getItem(STORAGE_KEY)) {
   continueBtn?.classList.remove('hidden');
