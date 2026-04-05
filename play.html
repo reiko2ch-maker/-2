@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>宵宿 - PLAY v9</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="overlay" class="overlay">
+    <div class="hud top-left hidden">
+      <div id="dayLabel">DAY 1</div>
+      <div id="phaseLabel">昼勤務</div>
+    </div>
+
+    <div class="hud top-right hidden">
+      <button id="saveBtn" class="mini-btn">SAVE</button>
+      <button id="loadBtn" class="mini-btn">LOAD</button>
+      <button id="restartBtn" class="mini-btn danger">RESET</button>
+    </div>
+
+    <div id="crosshair" class="crosshair hidden">+</div>
+    <div id="objective" class="objective hidden">読み込み中...</div>
+    <div id="prompt" class="prompt hidden">ACTで調べる</div>
+    <div id="touchHint" class="touch-hint hidden">左で移動 / 右で視点 / ACTで話す・調べる</div>
+
+    <div id="dialogueBox" class="dialogue hidden">
+      <div id="speaker" class="speaker">女将</div>
+      <div id="dialogueText" class="dialogue-text"></div>
+      <div class="dialogue-help">タップ / Enter / E で進む</div>
+    </div>
+
+    <div id="choiceBox" class="choice-box hidden"></div>
+
+    <div id="titleScreen" class="title-screen hidden" aria-hidden="true"></div>
+
+    <div id="howtoModal" class="howto-modal hidden" aria-hidden="true">
+      <div class="howto-card">
+        <div class="howto-head">
+          <div>
+            <div class="eyebrow">HOW TO PLAY</div>
+            <h2>遊び方</h2>
+          </div>
+          <button id="closeHowtoBtn" class="mini-btn">閉じる</button>
+        </div>
+        <div class="howto-body">
+          <div class="howto-block">
+            <div class="howto-label">最初の流れ</div>
+            <p>女将 → 鍵 → 客 → 電話 → ベル で昼が進みます。夜は 201号室 → 帳場ノート → 誘導員 の順です。</p>
+          </div>
+          <div class="howto-block">
+            <div class="howto-label">スマホ操作</div>
+            <p>左下のMOVEで移動。右下のLOOKで視点変更。ACTで話す・調べる。会話中は画面下の会話枠をタップ。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="endingScreen" class="ending-screen hidden">
+      <div class="ending-inner">
+        <div class="eyebrow">ENDING</div>
+        <h2 id="endingTitle">END</h2>
+        <p id="endingText"></p>
+        <button id="endingRestartBtn" class="primary-btn" onclick="location.href='./index.html'">タイトルへ戻る</button>
+      </div>
+    </div>
+
+    <div id="fade" class="fade hidden"></div>
+
+    <div id="touchControls" class="touch-controls hidden">
+      <div class="stick-zone left-stick-zone">
+        <div class="stick-label">MOVE</div>
+        <div id="movePad" class="stick-pad">
+          <div id="moveStick" class="stick-knob"></div>
+        </div>
+      </div>
+
+      <div class="touch-right">
+        <div class="stick-zone look-stick-zone">
+          <div class="stick-label">LOOK</div>
+          <div id="lookPad" class="stick-pad look-pad">
+            <div id="lookStick" class="stick-knob"></div>
+          </div>
+        </div>
+        <button id="actBtn" class="action-btn">ACT</button>
+      </div>
+    </div>
+
+    <button id="startBtn" class="hidden" type="button"></button>
+    <button id="continueBtn" class="hidden" type="button"></button>
+    <button id="howtoBtn" class="hidden" type="button"></button>
+
+    <div class="scanlines"></div>
+    <div class="noise"></div>
+    <div class="vignette"></div>
+  </div>
+
+  <script>
+    window.__pendingStartYoinado = true;
+    window.__AUTO_START__ = true;
+    const params = new URLSearchParams(location.search);
+    window.__AUTO_CONTINUE__ = params.get('continue') === '1';
+  </script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>

@@ -3,196 +3,60 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>宵宿 - PS1風ローポリ旅館ホラー v6</title>
+  <title>宵宿 - PS1風ローポリ旅館ホラー v9</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { background:#000; }
+    .title-only {
+      position: fixed; inset: 0; display:flex; align-items:center; justify-content:center;
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 50% 15%, rgba(176, 147, 100, 0.16), transparent 30%),
+        linear-gradient(180deg, rgba(4,4,8,0.78) 0%, rgba(2,2,6,0.9) 56%, rgba(0,0,0,0.96) 100%);
+      padding: 24px;
+    }
+    .title-card {
+      position: relative; z-index: 2; width:min(92vw, 760px); border-radius: 26px; padding: 26px 20px 22px;
+      background: rgba(9,7,13,.78); border:1px solid rgba(255,255,255,.14); box-shadow: 0 12px 38px rgba(0,0,0,.42);
+      backdrop-filter: blur(4px); text-align:center;
+    }
+    .title-card .title-topline { font-size:12px; letter-spacing:.18em; color:rgba(245,241,232,.66); }
+    .title-card .title-subkanji { margin-top:10px; font-size:13px; letter-spacing:.14em; color:#b89a69; }
+    .title-card .title-logo { margin:10px 0 0; font-size: clamp(54px, 16vw, 104px); line-height:1; letter-spacing:.08em; }
+    .title-card .title-ruby { letter-spacing:.32em; color:rgba(245,241,232,.7); font-size:12px; margin-top:8px; }
+    .title-card .title-copy { margin:18px auto 0; max-width: 560px; line-height:1.8; color:rgba(245,241,232,.86); }
+    .title-actions { display:flex; flex-direction:column; gap:12px; max-width: 360px; margin:22px auto 0; }
+    .title-link { display:flex; align-items:center; justify-content:center; text-decoration:none; }
+    .title-note { margin-top:14px; font-size:12px; color:rgba(245,241,232,.62); line-height:1.7; }
+    .version-badge { margin-top:14px; font-size:12px; color:#b89a69; }
+  </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
-
-  <div id="overlay" class="overlay">
-    <div class="hud top-left hidden">
-      <div id="dayLabel">DAY 1</div>
-      <div id="phaseLabel">昼勤務</div>
-    </div>
-
-    <div class="hud top-right hidden">
-      <button id="saveBtn" class="mini-btn">SAVE</button>
-      <button id="loadBtn" class="mini-btn">LOAD</button>
-      <button id="restartBtn" class="mini-btn danger">RESET</button>
-    </div>
-
-    <div id="crosshair" class="crosshair hidden">+</div>
-    <div id="objective" class="objective hidden">女将に話しかける</div>
-    <div id="prompt" class="prompt hidden">ACTで調べる</div>
-    <div id="touchHint" class="touch-hint hidden">左で移動 / 右で視点 / ACTで話す・調べる</div>
-
-    <div id="dialogueBox" class="dialogue hidden">
-      <div id="speaker" class="speaker">女将</div>
-      <div id="dialogueText" class="dialogue-text"></div>
-      <div class="dialogue-help">タップ / Enter / E で進む</div>
-    </div>
-
-    <div id="choiceBox" class="choice-box hidden"></div>
-
-    <div id="titleScreen" class="title-screen" aria-hidden="false">
-      <div class="title-bg-glow"></div>
-      <div class="title-film"></div>
-      <div id="titleInner" class="title-shell">
-        <div class="title-topline">PS1風 LOW-POLY JAPANESE HORROR / v8</div>
-        <div class="title-subkanji">タイトル遷移確定版</div>
-        <h1 class="title-logo">宵宿</h1>
-        <div class="title-ruby">YOIYADO</div>
-        <p class="title-copy">
-          昼は接客、夜は見回り。<br>
-          まずは旅館内を歩き、女将・客・電話に触って操作感を確かめてください。
-          反応しない場合でも、タイトル中央をタップすれば開始するように修正しています。
-        </p>
-
-        <div class="title-menu">
-          <button id="startBtn" type="button" class="primary-btn title-menu-btn" onclick="window.__safeStartYoinado && window.__safeStartYoinado(); return false;" ontouchend="window.__safeStartYoinado && window.__safeStartYoinado(); return false;" onpointerup="window.__safeStartYoinado && window.__safeStartYoinado(); return false;">はじめから</button>
-          <button id="continueBtn" type="button" class="primary-btn secondary-btn title-menu-btn hidden">つづきから</button>
-          <button id="howtoBtn" type="button" class="primary-btn ghost-btn title-menu-btn">遊び方</button>
-        </div>
-
-        <div class="title-tap-hint">はじめから を押すか、このパネル中央をタップすると開始</div>
-
-        <div id="startStatus" class="title-start-status">待機中</div>
-
-        <div class="title-footer-meta">
-          <div>PC: WASD / マウスドラッグ / E</div>
-          <div>スマホ: 左スティック移動 / 右スティック視点 / ACTで会話</div>
-        </div>
+  <div class="title-only">
+    <div class="title-bg-glow"></div>
+    <div class="title-film"></div>
+    <div class="title-card">
+      <div class="title-topline">PS1風 LOW-POLY JAPANESE HORROR / v9</div>
+      <div class="title-subkanji">タイトル分離版</div>
+      <h1 class="title-logo">宵宿</h1>
+      <div class="title-ruby">YOIYADO</div>
+      <p class="title-copy">
+        タイトル画面とゲーム画面を分離しました。<br>
+        これで「はじめから」が押せずに止まる問題を避けます。
+      </p>
+      <div class="title-actions">
+        <a class="primary-btn title-link" href="./play.html">はじめから</a>
+        <a class="primary-btn secondary-btn title-link" href="./play.html?continue=1">つづきから</a>
       </div>
-
-      <div id="howtoModal" class="howto-modal hidden" aria-hidden="true">
-        <div class="howto-card">
-          <div class="howto-head">
-            <div>
-              <div class="eyebrow">HOW TO PLAY</div>
-              <h2>遊び方</h2>
-            </div>
-            <button id="closeHowtoBtn" class="mini-btn">閉じる</button>
-          </div>
-          <div class="howto-body">
-            <div class="howto-block">
-              <div class="howto-label">最初の流れ</div>
-              <p>女将 → 鍵 → 客 → 電話 → ベル で昼が進みます。夜は 201号室 → 帳場ノート → 誘導員 の順です。</p>
-            </div>
-            <div class="howto-block">
-              <div class="howto-label">スマホ操作</div>
-              <p>左下のMOVEで移動。右下のLOOKで視点変更。ACTで話す・調べる。会話中は画面下の会話枠をタップ。</p>
-            </div>
-            <div class="howto-block">
-              <div class="howto-label">目的</div>
-              <p>まずはスマホで違和感なく動かせることを優先した版です。操作確認後にイベント追加しやすい構成にしています。</p>
-            </div>
-          </div>
-        </div>
+      <div class="title-note">
+        これは JavaScript のボタン起動ではなく、通常のページ遷移です。<br>
+        iPhone Safari でも反応しやすい方式に変えています。
       </div>
+      <div class="version-badge">v9 / title page → play page</div>
     </div>
-
-    <div id="endingScreen" class="ending-screen hidden">
-      <div class="ending-inner">
-        <div class="eyebrow">ENDING</div>
-        <h2 id="endingTitle">END</h2>
-        <p id="endingText"></p>
-        <button id="endingRestartBtn" class="primary-btn">最初から</button>
-      </div>
-    </div>
-
-    <div id="fade" class="fade hidden"></div>
-
-    <div id="touchControls" class="touch-controls hidden">
-      <div class="stick-zone left-stick-zone">
-        <div class="stick-label">MOVE</div>
-        <div id="movePad" class="stick-pad">
-          <div id="moveStick" class="stick-knob"></div>
-        </div>
-      </div>
-
-      <div class="touch-right">
-        <div class="stick-zone look-stick-zone">
-          <div class="stick-label">LOOK</div>
-          <div id="lookPad" class="stick-pad look-pad">
-            <div id="lookStick" class="stick-knob"></div>
-          </div>
-        </div>
-        <button id="actBtn" class="action-btn">ACT</button>
-      </div>
-    </div>
-
     <div class="scanlines"></div>
     <div class="noise"></div>
     <div class="vignette"></div>
   </div>
-
-
-  <script>
-    (function () {
-      function markStatus(text) {
-        const el = document.getElementById('startStatus');
-        if (el) el.textContent = text;
-      }
-
-      function safeStart() {
-        if (window.__yoinadoStarting) return false;
-        window.__yoinadoStarting = true;
-        window.__pendingStartYoinado = true;
-        markStatus('開始処理中...');
-
-        const tryStart = () => {
-          if (typeof window.__startGame === 'function') {
-            markStatus('開始します...');
-            window.__startGame();
-            return true;
-          }
-          return false;
-        };
-
-        if (tryStart()) return false;
-
-        let count = 0;
-        const timer = window.setInterval(() => {
-          count += 1;
-          if (tryStart()) {
-            clearInterval(timer);
-            return;
-          }
-          if (count > 200) {
-            clearInterval(timer);
-            window.__yoinadoStarting = false;
-            markStatus('読み込みに失敗。ページを再読み込みしてください。');
-          }
-        }, 50);
-
-        return false;
-      }
-
-      window.__safeStartYoinado = safeStart;
-
-      document.addEventListener('DOMContentLoaded', function () {
-        const bind = (el, fn) => {
-          if (!el) return;
-          ['click', 'touchend', 'pointerup', 'mouseup'].forEach((name) => {
-            el.addEventListener(name, function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              fn(e);
-            }, { passive: false, capture: true });
-          });
-        };
-
-        const startBtn = document.getElementById('startBtn');
-        const titleInner = document.getElementById('titleInner');
-        bind(startBtn, safeStart);
-        bind(titleInner, function (e) {
-          const t = e.target;
-          if (t && t.closest && (t.closest('#howtoBtn') || t.closest('#continueBtn') || t.closest('#closeHowtoBtn'))) return;
-          safeStart();
-        });
-      });
-    })();
-  </script>
-  <script type="module" src="game.js"></script>
 </body>
 </html>

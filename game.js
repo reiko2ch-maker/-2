@@ -1100,16 +1100,32 @@ function startNewGame() {
   startGame();
 }
 
+function autoContinueOrStart() {
+  if (window.__AUTO_CONTINUE__) {
+    const loaded = loadGame(true);
+    if (loaded) {
+      titleScreen?.classList.add('hidden');
+      setStartedUI(true);
+      return true;
+    }
+  }
+  startNewGame();
+  return true;
+}
+
 window.__startGame = () => {
   if (state.started) return;
   if (howtoModal && !howtoModal.classList.contains('hidden')) return;
-  startNewGame();
+  autoContinueOrStart();
 };
 
 window.__forceStart = window.__startGame;
 window.__startGameReady = true;
 if (window.__pendingStartYoinado && !state.started) {
   window.__startGame();
+}
+if (window.__AUTO_START__ && !state.started) {
+  window.setTimeout(() => { if (!state.started) window.__startGame(); }, 60);
 }
 
 function openHowto() {
