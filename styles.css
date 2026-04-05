@@ -21,6 +21,8 @@ body {
   background: #000;
   color: var(--fg);
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 canvas#game {
@@ -33,10 +35,25 @@ canvas#game {
   image-rendering: crisp-edges;
 }
 
+canvas#game,
+#overlay {
+  touch-action: none;
+}
+
+.dialogue,
+.choice-box,
+.touch-controls,
+.ending-screen,
+.howto-modal {
+  pointer-events: auto;
+}
+
+
 .overlay {
   position: fixed;
   inset: 0;
-  pointer-events: auto;
+  pointer-events: none;
+  touch-action: none;
 }
 
 .hud {
@@ -665,3 +682,5 @@ h2 {
     font-size: 11px;
   }
 }
+
+.title-menu-btn, .mini-btn, .action-btn, .choice-btn { touch-action: manipulation; }

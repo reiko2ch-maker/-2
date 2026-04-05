@@ -14,6 +14,7 @@ const endingTextEl = document.getElementById('endingText');
 const fadeEl = document.getElementById('fade');
 const dayLabelEl = document.getElementById('dayLabel');
 const phaseLabelEl = document.getElementById('phaseLabel');
+const overlayEl = document.getElementById('overlay');
 
 const movePad = document.getElementById('movePad');
 const moveStick = document.getElementById('moveStick');
@@ -30,7 +31,7 @@ const saveBtn = document.getElementById('saveBtn');
 const loadBtn = document.getElementById('loadBtn');
 const restartBtn = document.getElementById('restartBtn');
 
-const STORAGE_KEY = 'yoinado_ps1_save_v4';
+const STORAGE_KEY = 'yoinado_ps1_save_v5';
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
 renderer.shadowMap.enabled = false;
@@ -1156,7 +1157,19 @@ function initMouseLook() {
 }
 
 function initTouchControls() {
+  const onAct = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    ensureAudio();
+    if (state.inDialogue && state.currentDialogue) {
+      advanceDialogue();
+    } else {
+      triggerInteraction();
+    }
+  };
+
   movePad.addEventListener('touchstart', (e) => {
+    e.preventDefault();
     const t = e.changedTouches[0];
     const rect = movePad.getBoundingClientRect();
     touchMove.active = true;
@@ -1164,60 +1177,65 @@ function initTouchControls() {
     touchMove.baseY = rect.top + rect.height / 2;
     updateMoveTouch(t.clientX, t.clientY);
     ensureAudio();
-  }, { passive: true });
+  }, { passive: false });
 
   movePad.addEventListener('touchmove', (e) => {
+    e.preventDefault();
     const t = e.changedTouches[0];
     updateMoveTouch(t.clientX, t.clientY);
-  }, { passive: true });
+  }, { passive: false });
 
-  movePad.addEventListener('touchend', () => {
+  movePad.addEventListener('touchend', (e) => {
+    e.preventDefault();
     touchMove.active = false;
     touchMove.x = 0;
     touchMove.y = 0;
     moveStick.style.transform = 'translate(0px, 0px)';
+  }, { passive: false });
+
+  ['click', 'touchstart', 'touchend'].forEach((evt) => {
+    actBtn.addEventListener(evt, onAct, { passive: false });
   });
 
-  actBtn.addEventListener('click', () => {
-    ensureAudio();
-    if (state.inDialogue && state.currentDialogue) {
-      advanceDialogue();
-    } else {
-      triggerInteraction();
-    }
-  });
+  const isInteractiveUiTarget = (target) => {
+    return Boolean(target?.closest?.('#movePad, #actBtn, #dialogueBox, #choiceBox, #titleScreen, #endingScreen, .top-right, .top-left, #howtoModal'));
+  };
 
-  canvas.addEventListener('touchstart', (e) => {
+  window.addEventListener('touchstart', (e) => {
     if (!state.started || state.inDialogue) return;
-    const touch = Array.from(e.changedTouches).find((t) => t.clientX > window.innerWidth * 0.42);
+    if (isInteractiveUiTarget(e.target)) return;
+    const touch = Array.from(e.changedTouches).find((t) => t.clientX > window.innerWidth * 0.35);
     if (!touch) return;
+    e.preventDefault();
     lookTouch.active = true;
     lookTouch.id = touch.identifier;
     lookTouch.lastX = touch.clientX;
     lookTouch.lastY = touch.clientY;
     ensureAudio();
-  }, { passive: true });
+  }, { passive: false });
 
-  canvas.addEventListener('touchmove', (e) => {
+  window.addEventListener('touchmove', (e) => {
     if (!lookTouch.active) return;
     const touch = Array.from(e.changedTouches).find((t) => t.identifier === lookTouch.id);
     if (!touch) return;
+    e.preventDefault();
     const dx = touch.clientX - lookTouch.lastX;
     const dy = touch.clientY - lookTouch.lastY;
     lookTouch.lastX = touch.clientX;
     lookTouch.lastY = touch.clientY;
     player.rotation.y -= dx * 0.004;
     camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x - dy * 0.0036, -1.2, 1.2);
-  }, { passive: true });
+  }, { passive: false });
 
-  canvas.addEventListener('touchend', (e) => {
+  window.addEventListener('touchend', (e) => {
     if (!lookTouch.active) return;
     const ended = Array.from(e.changedTouches).find((t) => t.identifier === lookTouch.id);
     if (ended) {
+      e.preventDefault();
       lookTouch.active = false;
       lookTouch.id = null;
     }
-  }, { passive: true });
+  }, { passive: false });
 }
 
 function updateMoveTouch(clientX, clientY) {
