@@ -18,7 +18,10 @@ const overlayEl = document.getElementById('overlay');
 
 const movePad = document.getElementById('movePad');
 const moveStick = document.getElementById('moveStick');
+const lookPad = document.getElementById('lookPad');
+const lookStick = document.getElementById('lookStick');
 const actBtn = document.getElementById('actBtn');
+const touchHintEl = document.getElementById('touchHint');
 
 const startBtn = document.getElementById('startBtn');
 const titleInner = document.getElementById('titleInner');
@@ -31,7 +34,8 @@ const saveBtn = document.getElementById('saveBtn');
 const loadBtn = document.getElementById('loadBtn');
 const restartBtn = document.getElementById('restartBtn');
 
-const STORAGE_KEY = 'yoinado_ps1_save_v5';
+const STORAGE_KEY = 'yoinado_ps1_save_v7';
+const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
 renderer.shadowMap.enabled = false;
@@ -84,8 +88,8 @@ const keys = {
   right: false,
 };
 
-const touchMove = { active: false, x: 0, y: 0, baseX: 0, baseY: 0 };
-const lookTouch = { active: false, id: null, lastX: 0, lastY: 0 };
+const moveInput = { active: false, x: 0, y: 0, baseX: 0, baseY: 0, pointerId: null };
+const lookInput = { active: false, x: 0, y: 0, baseX: 0, baseY: 0, pointerId: null };
 
 const world = {
   receptionDesk: null,
@@ -112,8 +116,9 @@ function setStartedUI(started) {
   document.querySelector('.top-right')?.classList.toggle('hidden', !started);
   objectiveEl.classList.toggle('hidden', !started);
   promptEl.classList.add('hidden');
-  document.getElementById('crosshair')?.classList.toggle('hidden', !started);
-  document.getElementById('touchControls')?.classList.toggle('hidden', !started);
+  document.getElementById('crosshair')?.classList.toggle('hidden', !started || isCoarsePointer);
+  document.getElementById('touchControls')?.classList.toggle('hidden', !(started && isCoarsePointer));
+  touchHintEl?.classList.toggle('hidden', !(started && isCoarsePointer));
 }
 
 
@@ -629,12 +634,15 @@ function showChoices(options) {
     const button = document.createElement('button');
     button.className = 'choice-btn';
     button.textContent = option.label;
-    button.addEventListener('click', () => {
+    const onChoose = (e) => {
+      e?.preventDefault?.();
       choiceBox.classList.add('hidden');
       state.inDialogue = false;
       state.allowInput = true;
       option.onSelect();
-    });
+    };
+    button.addEventListener('click', onChoose, { passive: false });
+    button.addEventListener('pointerup', onChoose, { passive: false });
     choiceBox.appendChild(button);
   });
 }
@@ -871,8 +879,8 @@ function movePlayer(delta) {
   if (keys.left) xInput -= 1;
   if (keys.right) xInput += 1;
 
-  xInput += touchMove.x;
-  zInput += -touchMove.y;
+  xInput += moveInput.x;
+  zInput += -moveInput.y;
 
   const dirLen = Math.hypot(xInput, zInput);
   if (dirLen > 0.001) {
@@ -1021,6 +1029,11 @@ function loadGame() {
     state.allowInput = true;
     setStartedUI(true);
     applyWorldState();
+    if (touchHintEl) {
+      touchHintEl.classList.remove('hidden');
+      window.clearTimeout(window.__yoinadoHintTimer);
+      window.__yoinadoHintTimer = window.setTimeout(() => touchHintEl?.classList.add('hidden'), 4000);
+    }
     return true;
   } catch (error) {
     console.error(error);
@@ -1030,6 +1043,8 @@ function loadGame() {
 
 function resetGame(showTitle = true) {
   localStorage.removeItem(STORAGE_KEY);
+  resetStickState(moveInput, moveStick);
+  resetStickState(lookInput, lookStick);
   Object.keys(taskFlags).forEach((key) => {
     taskFlags[key] = false;
   });
@@ -1065,6 +1080,11 @@ function resetGame(showTitle = true) {
 
 function startGame() {
   ensureAudio();
+  if (touchHintEl) {
+    touchHintEl.classList.remove('hidden');
+    window.clearTimeout(window.__yoinadoHintTimer);
+    window.__yoinadoHintTimer = window.setTimeout(() => touchHintEl?.classList.add('hidden'), 6000);
+  }
   titleScreen.classList.add('hidden');
   endingScreen.classList.add('hidden');
   state.started = true;
@@ -1086,6 +1106,8 @@ window.__startGame = () => {
   startNewGame();
 };
 
+window.__forceStart = window.__startGame;
+
 function openHowto() {
   howtoModal?.classList.remove('hidden');
 }
@@ -1098,6 +1120,7 @@ function animate() {
   requestAnimationFrame(animate);
   const delta = Math.min(clock.getDelta(), 0.05);
   if (state.started) {
+    updateLook(delta);
     movePlayer(delta);
     clampPlayer();
     updateInteractions();
@@ -1128,12 +1151,61 @@ function onKey(e, down) {
   }
 }
 
+function updateLook(delta) {
+  if (!state.allowInput || state.inDialogue) return;
+  if (!lookInput.active) return;
+  player.rotation.y -= lookInput.x * 2.2 * delta;
+  camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x - lookInput.y * 1.7 * delta, -1.12, 1.12);
+}
+
+function bindPress(el, handler) {
+  if (!el) return;
+  let fired = false;
+  const wrapped = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (fired) return;
+    fired = true;
+    handler(e);
+    requestAnimationFrame(() => {
+      fired = false;
+    });
+  };
+  el.addEventListener('click', wrapped, { passive: false });
+  el.addEventListener('pointerup', wrapped, { passive: false });
+  el.addEventListener('touchend', wrapped, { passive: false });
+}
+
+function updateStickState(stickState, knob, pad, clientX, clientY, radius = 38) {
+  const rect = pad.getBoundingClientRect();
+  stickState.baseX = rect.left + rect.width / 2;
+  stickState.baseY = rect.top + rect.height / 2;
+  const dx = clientX - stickState.baseX;
+  const dy = clientY - stickState.baseY;
+  const dist = Math.hypot(dx, dy) || 1;
+  const clamped = Math.min(dist, radius);
+  const nx = (dx / dist) * clamped;
+  const ny = (dy / dist) * clamped;
+  stickState.x = nx / radius;
+  stickState.y = ny / radius;
+  knob.style.transform = `translate(${nx}px, ${ny}px)`;
+}
+
+function resetStickState(stickState, knob) {
+  stickState.active = false;
+  stickState.pointerId = null;
+  stickState.x = 0;
+  stickState.y = 0;
+  knob.style.transform = 'translate(0px, 0px)';
+}
+
 function initMouseLook() {
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
 
   canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') return;
     if (!state.started || state.inDialogue) return;
     dragging = true;
     lastX = e.clientX;
@@ -1141,8 +1213,8 @@ function initMouseLook() {
     ensureAudio();
   });
 
-  window.addEventListener('pointerup', () => {
-    dragging = false;
+  window.addEventListener('pointerup', (e) => {
+    if (e.pointerType !== 'touch') dragging = false;
   });
 
   window.addEventListener('pointermove', (e) => {
@@ -1152,103 +1224,51 @@ function initMouseLook() {
     lastX = e.clientX;
     lastY = e.clientY;
     player.rotation.y -= dx * 0.0035;
-    camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x - dy * 0.0032, -1.2, 1.2);
+    camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x - dy * 0.0032, -1.12, 1.12);
   });
 }
 
 function initTouchControls() {
-  const onAct = (e) => {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
+  if (!isCoarsePointer) return;
+
+  const bindStick = (pad, knob, stickState) => {
+    pad.addEventListener('pointerdown', (e) => {
+      if (!state.started || state.inDialogue) return;
+      e.preventDefault();
+      ensureAudio();
+      stickState.active = true;
+      stickState.pointerId = e.pointerId;
+      pad.setPointerCapture?.(e.pointerId);
+      updateStickState(stickState, knob, pad, e.clientX, e.clientY);
+    }, { passive: false });
+
+    pad.addEventListener('pointermove', (e) => {
+      if (!stickState.active || stickState.pointerId !== e.pointerId) return;
+      e.preventDefault();
+      updateStickState(stickState, knob, pad, e.clientX, e.clientY);
+    }, { passive: false });
+
+    const endStick = (e) => {
+      if (stickState.pointerId !== null && e.pointerId !== stickState.pointerId) return;
+      resetStickState(stickState, knob);
+    };
+
+    pad.addEventListener('pointerup', endStick, { passive: false });
+    pad.addEventListener('pointercancel', endStick, { passive: false });
+    pad.addEventListener('lostpointercapture', () => resetStickState(stickState, knob), { passive: true });
+  };
+
+  bindStick(movePad, moveStick, moveInput);
+  bindStick(lookPad, lookStick, lookInput);
+
+  bindPress(actBtn, () => {
     ensureAudio();
     if (state.inDialogue && state.currentDialogue) {
       advanceDialogue();
     } else {
       triggerInteraction();
     }
-  };
-
-  movePad.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    const t = e.changedTouches[0];
-    const rect = movePad.getBoundingClientRect();
-    touchMove.active = true;
-    touchMove.baseX = rect.left + rect.width / 2;
-    touchMove.baseY = rect.top + rect.height / 2;
-    updateMoveTouch(t.clientX, t.clientY);
-    ensureAudio();
-  }, { passive: false });
-
-  movePad.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    const t = e.changedTouches[0];
-    updateMoveTouch(t.clientX, t.clientY);
-  }, { passive: false });
-
-  movePad.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    touchMove.active = false;
-    touchMove.x = 0;
-    touchMove.y = 0;
-    moveStick.style.transform = 'translate(0px, 0px)';
-  }, { passive: false });
-
-  ['click', 'touchstart', 'touchend'].forEach((evt) => {
-    actBtn.addEventListener(evt, onAct, { passive: false });
   });
-
-  const isInteractiveUiTarget = (target) => {
-    return Boolean(target?.closest?.('#movePad, #actBtn, #dialogueBox, #choiceBox, #titleScreen, #endingScreen, .top-right, .top-left, #howtoModal'));
-  };
-
-  window.addEventListener('touchstart', (e) => {
-    if (!state.started || state.inDialogue) return;
-    if (isInteractiveUiTarget(e.target)) return;
-    const touch = Array.from(e.changedTouches).find((t) => t.clientX > window.innerWidth * 0.35);
-    if (!touch) return;
-    e.preventDefault();
-    lookTouch.active = true;
-    lookTouch.id = touch.identifier;
-    lookTouch.lastX = touch.clientX;
-    lookTouch.lastY = touch.clientY;
-    ensureAudio();
-  }, { passive: false });
-
-  window.addEventListener('touchmove', (e) => {
-    if (!lookTouch.active) return;
-    const touch = Array.from(e.changedTouches).find((t) => t.identifier === lookTouch.id);
-    if (!touch) return;
-    e.preventDefault();
-    const dx = touch.clientX - lookTouch.lastX;
-    const dy = touch.clientY - lookTouch.lastY;
-    lookTouch.lastX = touch.clientX;
-    lookTouch.lastY = touch.clientY;
-    player.rotation.y -= dx * 0.004;
-    camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x - dy * 0.0036, -1.2, 1.2);
-  }, { passive: false });
-
-  window.addEventListener('touchend', (e) => {
-    if (!lookTouch.active) return;
-    const ended = Array.from(e.changedTouches).find((t) => t.identifier === lookTouch.id);
-    if (ended) {
-      e.preventDefault();
-      lookTouch.active = false;
-      lookTouch.id = null;
-    }
-  }, { passive: false });
-}
-
-function updateMoveTouch(clientX, clientY) {
-  const dx = clientX - touchMove.baseX;
-  const dy = clientY - touchMove.baseY;
-  const max = 34;
-  const len = Math.hypot(dx, dy) || 1;
-  const clamped = Math.min(len, max);
-  const nx = (dx / len) * clamped;
-  const ny = (dy / len) * clamped;
-  touchMove.x = nx / max;
-  touchMove.y = ny / max;
-  moveStick.style.transform = `translate(${nx}px, ${ny}px)`;
 }
 
 function bindEvents() {
@@ -1256,50 +1276,55 @@ function bindEvents() {
   window.addEventListener('keydown', (e) => onKey(e, true));
   window.addEventListener('keyup', (e) => onKey(e, false));
 
-  const titleTapStart = (e) => {
-    if (e) { e.preventDefault?.(); e.stopPropagation?.(); }
+  bindPress(startBtn, () => {
     if (state.started) return;
     if (howtoModal && !howtoModal.classList.contains('hidden')) return;
     startNewGame();
-  };
-  const titleBackdropStart = (e) => {
-    const target = e?.target;
+  });
+
+  bindPress(titleInner, (e) => {
+    if (state.started) return;
     if (howtoModal && !howtoModal.classList.contains('hidden')) return;
-    if (target?.closest?.('.title-menu') || target?.closest?.('.howto-card') || target?.closest?.('#closeHowtoBtn')) {
-      return;
+    const target = e?.target;
+    if (target?.closest?.('#howtoBtn') || target?.closest?.('#continueBtn') || target?.closest?.('#closeHowtoBtn')) return;
+    startNewGame();
+  });
+
+  bindPress(continueBtn, () => {
+    if (!loadGame()) {
+      showDialogue([{ speaker: '記録', text: '保存データが見つからない。' }], () => {
+        state.allowInput = false;
+      });
     }
-    titleTapStart(e);
-  };
-  ['click','touchstart','touchend','pointerdown'].forEach((evt) => {
-    startBtn.addEventListener(evt, titleTapStart, { passive: false });
   });
-  ['click','touchstart','touchend'].forEach((evt) => {
-    continueBtn?.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation?.(); loadGame(); }, { passive: false });
-    howtoBtn?.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation?.(); openHowto(); }, { passive: false });
-    closeHowtoBtn?.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation?.(); closeHowto(); }, { passive: false });
-  });
-  ['click','touchstart','touchend'].forEach((evt) => {
-    titleScreen.addEventListener(evt, titleBackdropStart, { passive: false });
-    howtoModal?.addEventListener(evt, (e) => {
-      if (e.target === howtoModal) {
-        e.preventDefault?.();
-        e.stopPropagation?.();
-        closeHowto();
-      }
-    }, { passive: false });
-  });
-  endingRestartBtn.addEventListener('click', () => resetGame(true));
-  saveBtn.addEventListener('click', saveGame);
-  loadBtn.addEventListener('click', () => {
+
+  bindPress(howtoBtn, () => openHowto());
+  bindPress(closeHowtoBtn, () => closeHowto());
+  bindPress(endingRestartBtn, () => resetGame(true));
+  bindPress(saveBtn, () => saveGame());
+  bindPress(loadBtn, () => {
     if (!loadGame()) {
       showDialogue([{ speaker: '記録', text: '保存データが見つからない。' }], () => {
         state.allowInput = state.started;
       });
     }
   });
-  restartBtn.addEventListener('click', () => resetGame(true));
+  bindPress(restartBtn, () => resetGame(true));
 
-  dialogueBox.addEventListener('click', () => {
+  titleScreen.addEventListener('pointerdown', (e) => {
+    if (e.target === titleScreen && !state.started && howtoModal.classList.contains('hidden')) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  howtoModal?.addEventListener('pointerdown', (e) => {
+    if (e.target === howtoModal) {
+      e.preventDefault();
+      closeHowto();
+    }
+  }, { passive: false });
+
+  bindPress(dialogueBox, () => {
     if (state.currentDialogue) advanceDialogue();
   });
 

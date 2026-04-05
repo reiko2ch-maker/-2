@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>宵宿 - PS1風ローポリ旅館ホラー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>宵宿 - PS1風ローポリ旅館ホラー v6</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -22,9 +22,9 @@
     </div>
 
     <div id="crosshair" class="crosshair hidden">+</div>
-
     <div id="objective" class="objective hidden">女将に話しかける</div>
-    <div id="prompt" class="prompt hidden">E / タップで調べる</div>
+    <div id="prompt" class="prompt hidden">ACTで調べる</div>
+    <div id="touchHint" class="touch-hint hidden">左で移動 / 右で視点 / ACTで話す・調べる</div>
 
     <div id="dialogueBox" class="dialogue hidden">
       <div id="speaker" class="speaker">女将</div>
@@ -37,32 +37,28 @@
     <div id="titleScreen" class="title-screen" aria-hidden="false">
       <div class="title-bg-glow"></div>
       <div class="title-film"></div>
-      <div id="titleInner" class="title-shell" role="button" tabindex="0">
-        <div class="title-hero">
-          <div class="title-topline">PS1風 LOW-POLY JAPANESE HORROR / v5</div>
-          <div class="title-logo-wrap">
-            <div class="title-subkanji">山奥の住み込み旅館勤務</div>
-            <h1 class="title-logo">宵宿</h1>
-            <div class="title-ruby">YOIYADO</div>
-          </div>
-          <p class="title-copy">
-            昼は接客、夜は見回り。<br>
-            ただし、二階の突き当たりだけは見ないこと。
-          </p>
-        </div>
+      <div id="titleInner" class="title-shell">
+        <div class="title-topline">PS1風 LOW-POLY JAPANESE HORROR / v7</div>
+        <div class="title-subkanji">タイトル遷移安定版</div>
+        <h1 class="title-logo">宵宿</h1>
+        <div class="title-ruby">YOIYADO</div>
+        <p class="title-copy">
+          昼は接客、夜は見回り。<br>
+          まずは旅館内を歩き、女将・客・電話に触って操作感を確かめてください。
+        </p>
 
-        <div class="title-menu" aria-label="title menu">
-          <button id="startBtn" type="button" class="primary-btn title-menu-btn">はじめから</button>
+        <div class="title-menu">
+          <button id="startBtn" type="button" class="primary-btn title-menu-btn" onclick="window.__startGame && window.__startGame()" ontouchend="window.__startGame && window.__startGame(); return false;">はじめから</button>
           <button id="continueBtn" type="button" class="primary-btn secondary-btn title-menu-btn hidden">つづきから</button>
           <button id="howtoBtn" type="button" class="primary-btn ghost-btn title-menu-btn">遊び方</button>
         </div>
 
+        <div class="title-tap-hint">はじめから を押すか、このパネルをタップすると開始</div>
+
         <div class="title-footer-meta">
           <div>PC: WASD / マウスドラッグ / E</div>
-          <div>スマホ: 左下移動 / 右側スワイプで視点 / ACTで調べる</div>
+          <div>スマホ: 左スティック移動 / 右スティック視点 / ACTで会話</div>
         </div>
-
-        <div class="press-start">v5 / スマホ操作修正版</div>
       </div>
 
       <div id="howtoModal" class="howto-modal hidden" aria-hidden="true">
@@ -76,20 +72,16 @@
           </div>
           <div class="howto-body">
             <div class="howto-block">
-              <div class="howto-label">目的</div>
-              <p>昼の接客をこなし、夜の見回りで異変の正体に近づく。</p>
-            </div>
-            <div class="howto-block">
-              <div class="howto-label">PC操作</div>
-              <p>移動: WASD / 視点: マウスドラッグ / 調べる・話す: E または Enter</p>
+              <div class="howto-label">最初の流れ</div>
+              <p>女将 → 鍵 → 客 → 電話 → ベル で昼が進みます。夜は 201号室 → 帳場ノート → 誘導員 の順です。</p>
             </div>
             <div class="howto-block">
               <div class="howto-label">スマホ操作</div>
-              <p>左下のパッドで移動。画面右側をスワイプして視点操作。ACTで調べる。</p>
+              <p>左下のMOVEで移動。右下のLOOKで視点変更。ACTで話す・調べる。会話中は画面下の会話枠をタップ。</p>
             </div>
             <div class="howto-block">
-              <div class="howto-label">ヒント</div>
-              <p>女将、電話、帳場の鍵、提灯が進行の起点になりやすい。</p>
+              <div class="howto-label">目的</div>
+              <p>まずはスマホで違和感なく動かせることを優先した版です。操作確認後にイベント追加しやすい構成にしています。</p>
             </div>
           </div>
         </div>
@@ -97,7 +89,7 @@
     </div>
 
     <div id="endingScreen" class="ending-screen hidden">
-      <div class="title-inner ending-inner">
+      <div class="ending-inner">
         <div class="eyebrow">ENDING</div>
         <h2 id="endingTitle">END</h2>
         <p id="endingText"></p>
@@ -108,10 +100,20 @@
     <div id="fade" class="fade hidden"></div>
 
     <div id="touchControls" class="touch-controls hidden">
-      <div id="movePad" class="move-pad">
-        <div id="moveStick" class="move-stick"></div>
+      <div class="stick-zone left-stick-zone">
+        <div class="stick-label">MOVE</div>
+        <div id="movePad" class="stick-pad">
+          <div id="moveStick" class="stick-knob"></div>
+        </div>
       </div>
-      <div class="touch-actions">
+
+      <div class="touch-right">
+        <div class="stick-zone look-stick-zone">
+          <div class="stick-label">LOOK</div>
+          <div id="lookPad" class="stick-pad look-pad">
+            <div id="lookStick" class="stick-knob"></div>
+          </div>
+        </div>
         <button id="actBtn" class="action-btn">ACT</button>
       </div>
     </div>
