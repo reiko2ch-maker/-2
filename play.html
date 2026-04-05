@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>宵宿 PLAY v11</title>
+  <title>宵宿 PLAY v12</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -13,6 +13,12 @@
     <div class="hud-top-left">
       <div id="dayLabel" class="hud-chip">DAY 1</div>
       <div id="phaseLabel" class="hud-chip">昼勤務</div>
+    </div>
+    <div class="hud-top-center">
+      <div class="map-frame">
+        <div class="map-title">案内図</div>
+        <canvas id="miniMap" width="120" height="120"></canvas>
+      </div>
     </div>
     <div class="hud-top-right">
       <button id="saveBtn" class="mini-btn" type="button">SAVE</button>
@@ -26,7 +32,7 @@
     <div id="dialogueBox" class="dialogue-box hidden">
       <div id="speakerLabel" class="speaker-label">記録</div>
       <div id="dialogueText" class="dialogue-text">……</div>
-      <div class="dialogue-help">タップ / E で進む</div>
+      <div class="dialogue-help">タップ / E / ACT で進む</div>
     </div>
 
     <div id="statusBox" class="status-box">起動中...</div>
