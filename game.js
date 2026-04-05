@@ -40,7 +40,7 @@
   const movePad = document.getElementById('movePad');
   const moveKnob = document.getElementById('moveKnob');
 
-  const STORAGE_KEY = 'yoinado_v15_github_save';
+  const STORAGE_KEY = 'yoinado_v16_overdrive_save';
   const FOV = Math.PI / 3.0;
   const MAX_DEPTH = 26;
 
@@ -78,6 +78,13 @@
     talkedOkamiAgain: false,
     checkedClosedWing: false,
     readLedger: false,
+    day2Started: false,
+    talkedMaidDay2: false,
+    heard203: false,
+    checkedCourtyard: false,
+    gotFilm: false,
+    escapedGuide2: false,
+    finalTalked: false,
   };
 
   const player = {
@@ -137,11 +144,11 @@
         '########################',
         '#......................#',
         '#......................#',
-        '#...DD.....DD....BB....#',
+        '#...DD.....DD....DD.BB.#',
         '#......................#',
         '#......................#',
         '#......................#',
-        '#....SSSSSSSSSS..GG....#',
+        '#..DD.SSSSSSSSSS..GG.C.#',
         '#......................#',
         '########################'
       ],
@@ -151,14 +158,20 @@
         fromRoom202: { x: 11.6, y: 5.0, a: Math.PI },
         fromBath: { x: 18.0, y: 5.0, a: Math.PI },
         fromArchive: { x: 14.0, y: 2.0, a: Math.PI / 2 },
+        fromRoom203: { x: 16.2, y: 5.0, a: Math.PI },
+        fromStaff: { x: 3.2, y: 7.2, a: 0 },
+        fromCourtyard: { x: 21.0, y: 7.2, a: Math.PI },
         fromClosedWing: { x: 18.4, y: 7.2, a: Math.PI },
       },
       signs: [
         { x: 4.2, y: 2.0, text: '201' },
         { x: 11.2, y: 2.0, text: '202' },
+        { x: 16.2, y: 2.0, text: '203' },
         { x: 18.9, y: 2.0, text: '浴場前' },
+        { x: 3.2, y: 7.7, text: '従業員室' },
         { x: 14.3, y: 7.7, text: '北棟・宿帳庫' },
         { x: 18.8, y: 7.7, text: '閉鎖棟' },
+        { x: 21.2, y: 7.7, text: '中庭' },
       ]
     },
     room201: {
@@ -266,6 +279,80 @@
       spawns: { entry: { x: 2.0, y: 8.0, a: 0 } },
       signs: [{ x: 13.8, y: 3.7, text: '祭壇前' }, { x: 6.0, y: 1.8, text: '閉鎖棟' }]
     }
+,
+room203: {
+  name: '203号室',
+  skyTop: '#17161d', skyBottom: '#5c4635',
+  floorA: '#786b52', floorB: '#655841', ceilA: '#262127', ceilB: '#18161b',
+  map: [
+    '############',
+    '#....SS....#',
+    '#..........#',
+    '#..TT......#',
+    '#..........#',
+    '#..........#',
+    '#..........#',
+    '############'
+  ],
+  spawns: { door: { x: 2.0, y: 5.0, a: 0 } },
+  signs: [{ x: 5.9, y: 1.6, text: '203号室' }]
+},
+staff: {
+  name: '従業員室',
+  skyTop: '#141820', skyBottom: '#4a3728',
+  floorA: '#5e5448', floorB: '#4b4339', ceilA: '#1f2328', ceilB: '#14171b',
+  map: [
+    '##############',
+    '#....NNNN....#',
+    '#............#',
+    '#....KKKK....#',
+    '#............#',
+    '#....TT......#',
+    '#............#',
+    '##############'
+  ],
+  spawns: { door: { x: 11.0, y: 5.0, a: Math.PI } },
+  signs: [{ x: 6.4, y: 1.7, text: '従業員室' }]
+},
+courtyard: {
+  name: '中庭',
+  skyTop: '#081019', skyBottom: '#1e2c34',
+  floorA: '#374136', floorB: '#2a3229', ceilA: '#11161a', ceilB: '#0a0d10',
+  map: [
+    '##################',
+    '#................#',
+    '#....TT....TT....#',
+    '#................#',
+    '#................#',
+    '#....SS....SS....#',
+    '#................#',
+    '#.............A..#',
+    '#................#',
+    '##################'
+  ],
+  spawns: { door: { x: 2.0, y: 8.0, a: 0 } },
+  signs: [{ x: 8.8, y: 1.8, text: '中庭' }, { x: 14.7, y: 7.6, text: '離れ通路' }]
+},
+annex: {
+  name: '離れ通路',
+  skyTop: '#090d12', skyBottom: '#1f2b35',
+  floorA: '#4a433c', floorB: '#3a342f', ceilA: '#171b20', ceilB: '#0e1216',
+  map: [
+    '####################',
+    '#..................#',
+    '#....NNNN..........#',
+    '#..................#',
+    '#.........TT.......#',
+    '#..................#',
+    '#...............A..#',
+    '#..................#',
+    '#..................#',
+    '####################'
+  ],
+  spawns: { entry: { x: 2.0, y: 8.0, a: 0 } },
+  signs: [{ x: 8.5, y: 1.8, text: '離れ通路' }, { x: 16.0, y: 6.6, text: '記録保管棚' }]
+}
+
   };
 
   const textures = createTextures();
@@ -274,12 +361,14 @@
     guest: makeCharacterSprite('guest', false),
     maid: makeCharacterSprite('maid', false),
     guest202: makeCharacterSprite('guest202', false),
+    guest203: makeCharacterSprite('guest203', false),
     guide: makeCharacterSprite('guide', false),
     narrator: makePortrait('narrator'),
     okamiPortrait: makePortrait('okami'),
     guestPortrait: makePortrait('guest'),
     maidPortrait: makePortrait('maid'),
     guest202Portrait: makePortrait('guest202'),
+    guest203Portrait: makePortrait('guest203'),
     guidePortrait: makePortrait('guide'),
     tray: makeItemSprite('tray'),
     phone: makeItemSprite('phone'),
@@ -287,6 +376,8 @@
     bathSign: makeItemSprite('bathSign'),
     key: makeItemSprite('key'),
     ledger: makeItemSprite('ledger'),
+    lantern: makeItemSprite('lantern'),
+    film: makeItemSprite('film'),
     shrine: makeItemSprite('shrine'),
     archiveDoor: makeItemSprite('archiveDoor'),
     closedDoor: makeItemSprite('closedDoor'),
@@ -300,6 +391,7 @@
     '201号室の客': 'guestPortrait',
     '仲居・篠': 'maidPortrait',
     '202号室の客': 'guest202Portrait',
+    '203号室の客': 'guest203Portrait',
     '誘導員': 'guidePortrait',
     '受話器の向こう': 'guidePortrait',
   };
@@ -349,6 +441,17 @@
         ['記録', '女将だけが、逃げ帰ってくることを最初から知っていたように立っている。']
       ]);
     }
+    if (state.chaseActive && areaId === 'lobby' && tasks.gotFilm && !tasks.escapedGuide2) {
+      state.chaseActive = false;
+      guide.active = false;
+      tasks.escapedGuide2 = true;
+      state.step = 16;
+      setObjective('女将にフィルムのことを話す');
+      showDialogue([
+        ['記録', '二度目の追跡は、一度目より近かった。帳場へ滑り込んだ瞬間、ようやく息が戻る。'],
+        ['記録', '女将は逃げてくることを見越していたように、帳場の灯りだけを明るくして立っていた。']
+      ]);
+    }
   }
 
   function startNew() {
@@ -370,11 +473,12 @@
     spawnAt('lobby', 'start');
     guide.active = false;
     setObjective('女将に話しかける');
-    setStatus('起動完了 / v15 GitHub Edition', 3.0);
+    setStatus('起動完了 / v16 Overdrive Web', 3.0);
     showDialogue([
       ['記録', '住み込み初日。館内は静かすぎるほど静かだ。'],
       ['記録', '今夜は客の話を拾うほど、深夜に調べられる範囲が増えていく。'],
-      ['記録', 'ただし、宿帳庫のノートを手にした瞬間だけは、走る準備をしておいた方がいい。']
+      ['記録', '二日目には従業員室、203号室、中庭、離れ通路まで順番が伸びる。'],
+      ['記録', 'ただし、宿帳庫のノートや離れのフィルムを手にした瞬間だけは、走る準備をしておいた方がいい。']
     ]);
   }
 
@@ -396,7 +500,7 @@
 
   function saveGame() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(getSaveData()));
-    setStatus('保存した / v15', 1.8);
+    setStatus('保存した / v16', 1.8);
   }
 
   function loadGame() {
@@ -422,7 +526,7 @@
       promptBox.classList.add('hidden');
       state.ending = false;
       state.inDialogue = false;
-      setStatus('ロードした / v15', 1.8);
+      setStatus('ロードした / v16', 1.8);
       return true;
     } catch (err) {
       setStatus('ロード失敗', 1.8);
@@ -609,12 +713,89 @@
         showDialogue([
           ['記録', '台帳には、失踪した宿泊客が「誘導完了」とだけ記されていた。'],
           ['記録', '最後の空欄には、女将の筆跡で「次: 誘導員を見た者」とある。'],
-          ['記録', 'つまり今夜の順番は、自分だけではなかった。宿の全員が、もう選ばれている。']
+          ['記録', 'つまり今夜の順番は、自分だけではなかった。宿の全員が、もう選ばれている。'],
+          ['記録', 'だが夜が明けても、終わりにはならなかった。台帳の裏表紙に「二日目は中庭から」と走り書きされている。']
         ], () => {
           tasks.readLedger = true;
-          state.step = 11;
+          tasks.day2Started = true;
+          state.step = 12;
+          state.day = 2;
+          state.phase = 'day';
+          dayLabel.textContent = 'DAY 2';
+          phaseLabel.textContent = '昼勤務';
+          spawnAt('lobby', 'start');
+          setObjective('従業員室で仲居・篠を探す');
+          setStatus('二日目が始まった', 2.4);
+          showDialogue([
+            ['記録', '短い仮眠のあと、また同じ木の匂いで目が覚めた。'],
+            ['記録', '帳場の奥には、昨夜見たはずのない新しい宿帳が一冊増えている。'],
+            ['女将', '続きが見たいなら、篠を探しなさい。あの子だけが、中庭の順番を知っています。']
+          ]);
+        });
+        break;
+      case 'maid2':
+        showDialogue([
+          ['仲居・篠', '昨夜のこと、誰にも話していません。でも二日目になると、中庭の提灯に火が入るんです。'],
+          ['仲居・篠', '203号室の客は、その火を見た人だけが離れへ行けるって言っていました。'],
+          ['仲居・篠', 'もし行くなら、もう一度追われるかもしれません。今度はもっと近いです。']
+        ], () => {
+          tasks.talkedMaidDay2 = true;
+          state.step = 13;
+          setObjective('203号室の客から話を聞く');
+          setStatus('203号室へ');
+        });
+        break;
+      case 'guest203':
+        showDialogue([
+          ['203号室の客', '昨夜、赤い子どもが提灯の下に立っていた。顔だけが妙に近かった。'],
+          ['203号室の客', 'そのあと離れ通路から、映写機みたいな回る音がした。写真みたいなものを保管してるらしい。'],
+          ['203号室の客', '提灯の下に落ちてる黒い札を拾えば、離れの鍵になる。行くなら今のうちだ。']
+        ], () => {
+          tasks.heard203 = true;
+          state.step = 14;
+          setObjective('中庭の提灯を調べる');
+          setStatus('中庭へ向かう');
+        });
+        break;
+      case 'lantern':
+        showDialogue([
+          ['記録', '提灯の足元に、焼けた黒い札と細い金具が落ちている。'],
+          ['記録', '拾い上げると、離れ通路の戸が少しだけ開く音がした。'],
+          ['記録', '提灯の明かりに照らされて、濡れた足跡が離れの方へ伸びている。']
+        ], () => {
+          tasks.checkedCourtyard = true;
+          state.step = 15;
+          setObjective('離れ通路で黒いフィルムを探す');
+          setStatus('離れ通路が開いた');
+        });
+        break;
+      case 'film':
+        showDialogue([
+          ['記録', '保管棚には、宿泊客の顔が焼き付いた黒いフィルムが巻かれていた。'],
+          ['記録', '最後の一枚に映っているのは、白ヘルメットの誘導員の背後に並ばされた従業員たち。'],
+          ['誘導員', '二日目の順番も、見たな。']
+        ], () => {
+          tasks.gotFilm = true;
+          state.step = 16;
+          state.phase = 'night';
+          phaseLabel.textContent = '深夜調査';
+          state.chaseActive = true;
+          syncGuideSpawnForArea(player.area);
+          setObjective('誘導員から逃げて帳場へ戻る');
+          setStatus('第二追跡開始: 帳場へ逃げろ', 3.0);
+        });
+        break;
+      case 'okami3':
+        showDialogue([
+          ['女将', 'フィルムまで見てしまったのですね。なら、もう宿の外側の話はできません。'],
+          ['女将', 'この旅館は、消えた客を隠しているんじゃない。順番を守り続けないと、館内そのものが夜に飲まれるんです。'],
+          ['女将', 'あなたが記録を持ち出すなら、私は残る。宿泊客を連れて逃げるなら、もう一度閉鎖棟へ戻りなさい。'],
+          ['記録', '夜はまだ終わっていない。だが少なくとも、この宿が何を守っていたのかだけは見えた。']
+        ], () => {
+          tasks.finalTalked = true;
+          state.step = 17;
           saveGame();
-          endGame('夜の順番表', '青いノート、予備鍵、閉鎖棟の台帳。集めた断片が一つに繋がり、旅館全体が「誘導」のために動いていたことが分かった。v15ではここまで。次は女将と誘導員の正面対決、宿泊客の救出、複数エンディングに伸ばせます。');
+          endGame('二日目の記録', 'DAY2まで到達。従業員室、203号室、中庭、離れ通路、第二追跡まで実装した長編拡張版です。次は救出ルート、女将側ルート、宿からの脱出ルートの分岐に伸ばせます。');
         });
         break;
       case 'toHall': changeArea('hall', 'fromLobby'); break;
@@ -625,10 +806,16 @@
       case 'room201Exit': changeArea('hall', 'fromRoom'); break;
       case 'toRoom202': changeArea('room202', 'door'); break;
       case 'room202Exit': changeArea('hall', 'fromRoom202'); break;
+      case 'toRoom203': changeArea('room203', 'door'); break;
+      case 'room203Exit': changeArea('hall', 'fromRoom203'); break;
       case 'toBath': changeArea('bath', 'door'); break;
       case 'bathExit': changeArea('hall', 'fromBath'); break;
       case 'toArchive': if (tasks.gotMasterKey) changeArea('archive', 'entry'); break;
       case 'archiveExit': changeArea('hall', 'fromArchive'); break;
+      case 'toCourtyard': if (tasks.heard203 || tasks.checkedCourtyard || tasks.gotFilm) changeArea('courtyard', 'door'); break;
+      case 'courtyardExit': changeArea('hall', 'fromCourtyard'); break;
+      case 'toAnnex': if (tasks.checkedCourtyard) changeArea('annex', 'entry'); break;
+      case 'annexExit': changeArea('courtyard', 'door'); break;
       case 'toClosedWing': if (tasks.talkedOkamiAgain) changeArea('closedWing', 'entry'); break;
       case 'closedWingExit': changeArea('hall', 'fromClosedWing'); break;
       case 'shrine':
@@ -655,6 +842,10 @@
       kitchen: { x: 10, y: 68, w: 46, h: 20, label: '厨房' },
       archive: { x: 86, y: 68, w: 58, h: 20, label: '宿帳庫' },
       closedWing: { x: 156, y: 68, w: 74, h: 20, label: '閉鎖棟' },
+      staff: { x: 10, y: 92, w: 46, h: 20, label: '従業員室' },
+      room203: { x: 136, y: 54, w: 48, h: 22, label: '203' },
+      courtyard: { x: 238, y: 68, w: 62, h: 20, label: '中庭' },
+      annex: { x: 238, y: 38, w: 62, h: 20, label: '離れ' },
     };
   }
 
@@ -669,6 +860,11 @@
     if (state.step === 8) return 'archive';
     if (state.step === 9) return tasks.escapedGuide ? 'lobby' : 'hall';
     if (state.step === 10) return 'closedWing';
+    if (state.step === 12) return 'staff';
+    if (state.step === 13) return 'room203';
+    if (state.step === 14) return 'courtyard';
+    if (state.step === 15) return 'annex';
+    if (state.step === 16) return 'lobby';
     return player.area;
   }
 
@@ -720,6 +916,12 @@
     } else if (areaId === 'closedWing') {
       guide.x = 14.5; guide.y = 2.0;
       guide.active = true;
+    } else if (areaId === 'annex') {
+      guide.x = 16.8; guide.y = 2.4;
+      guide.active = true;
+    } else if (areaId === 'courtyard') {
+      guide.x = 14.5; guide.y = 2.2;
+      guide.active = true;
     } else {
       guide.active = false;
     }
@@ -740,8 +942,11 @@
     push({ type:'portal', id:'toRoom201', area:'hall', x:5.0, y:3.6, kind:'door', prompt:'201号室へ入る', active: true });
     push({ type:'portal', id:'toRoom202', area:'hall', x:11.0, y:3.6, kind:'door', prompt:'202号室へ入る', active: true });
     push({ type:'portal', id:'toBath', area:'hall', x:18.8, y:3.6, kind:'bathSign', prompt:'浴場前へ行く', active: true });
+    push({ type:'portal', id:'toRoom203', area:'hall', x:16.1, y:3.6, kind:'door', prompt:'203号室へ入る', active: tasks.talkedMaidDay2 || tasks.heard203 || tasks.checkedCourtyard || tasks.gotFilm || tasks.escapedGuide2 });
+    push({ type:'portal', id:'toStaff', area:'hall', x:3.2, y:7.3, kind:'door', prompt:'従業員室へ入る', active: tasks.day2Started });
     push({ type:'portal', id:'toArchive', area:'hall', x:14.0, y:7.3, kind:'archiveDoor', prompt:'北の宿帳庫へ', active: tasks.gotMasterKey });
     push({ type:'portal', id:'toClosedWing', area:'hall', x:19.0, y:7.3, kind:'closedDoor', prompt:'閉鎖棟へ入る', active: tasks.talkedOkamiAgain });
+    push({ type:'portal', id:'toCourtyard', area:'hall', x:21.2, y:7.3, kind:'lantern', prompt:'中庭へ出る', active: tasks.heard203 || tasks.checkedCourtyard || tasks.gotFilm });
     push({ type:'npc', id:'maid', area:'hall', x:9.8, y:5.4, kind:'maid', prompt:'仲居・篠に話しかける', active: tasks.servedGuest && !tasks.talkedMaid });
     push({ type:'npc', id:'guide', area:'hall', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'hall' });
 
@@ -751,20 +956,36 @@
     push({ type:'portal', id:'room202Exit', area:'room202', x:1.6, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
     push({ type:'npc', id:'guest202', area:'room202', x:6.6, y:3.2, kind:'guest202', prompt:'202号室の客に話しかける', active: tasks.checkedBath && !tasks.heard202 });
 
+    push({ type:'portal', id:'room203Exit', area:'room203', x:1.6, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
+    push({ type:'npc', id:'guest203', area:'room203', x:7.0, y:3.2, kind:'guest203', prompt:'203号室の客に話しかける', active: tasks.talkedMaidDay2 && !tasks.heard203 });
+
     push({ type:'portal', id:'bathExit', area:'bath', x:1.6, y:5.0, kind:'bathSign', prompt:'廊下へ戻る', active: true });
     push({ type:'item', id:'mirror', area:'bath', x:6.6, y:1.9, kind:'guide', prompt:'鏡を調べる', active: tasks.answeredPhone && !tasks.checkedBath });
 
     push({ type:'portal', id:'kitchenExit', area:'kitchen', x:10.8, y:5.0, kind:'door', prompt:'帳場へ戻る', active: true });
     push({ type:'item', id:'key', area:'kitchen', x:5.2, y:4.2, kind:'key', prompt:'予備鍵を取る', active: tasks.heard202 && !tasks.gotMasterKey });
 
+    push({ type:'portal', id:'staffExit', area:'staff', x:10.8, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
+    push({ type:'npc', id:'maid2', area:'staff', x:5.6, y:4.0, kind:'maid', prompt:'仲居・篠に話しかける', active: tasks.day2Started && !tasks.talkedMaidDay2 });
+
     push({ type:'portal', id:'archiveExit', area:'archive', x:12.8, y:7.1, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
     push({ type:'item', id:'notebook', area:'archive', x:4.6, y:4.2, kind:'notebook', prompt:'青いノートを拾う', active: tasks.gotMasterKey && !tasks.gotNotebook });
     push({ type:'npc', id:'guide', area:'archive', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'archive' });
+
+    push({ type:'portal', id:'courtyardExit', area:'courtyard', x:1.8, y:8.0, kind:'door', prompt:'廊下へ戻る', active: true });
+    push({ type:'portal', id:'toAnnex', area:'courtyard', x:14.8, y:7.8, kind:'archiveDoor', prompt:'離れ通路へ進む', active: tasks.checkedCourtyard || tasks.gotFilm });
+    push({ type:'item', id:'lantern', area:'courtyard', x:8.8, y:2.4, kind:'lantern', prompt:'提灯を調べる', active: tasks.heard203 && !tasks.checkedCourtyard });
+    push({ type:'npc', id:'guide', area:'courtyard', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'courtyard' });
+
+    push({ type:'portal', id:'annexExit', area:'annex', x:1.8, y:8.0, kind:'archiveDoor', prompt:'中庭へ戻る', active: true });
+    push({ type:'item', id:'film', area:'annex', x:16.0, y:6.4, kind:'film', prompt:'黒いフィルムを拾う', active: tasks.checkedCourtyard && !tasks.gotFilm });
+    push({ type:'npc', id:'guide', area:'annex', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'annex' });
 
     push({ type:'portal', id:'closedWingExit', area:'closedWing', x:1.6, y:8.0, kind:'closedDoor', prompt:'廊下へ戻る', active: true });
     push({ type:'item', id:'shrine', area:'closedWing', x:14.6, y:4.1, kind:'shrine', prompt:'祭壇を調べる', active: tasks.talkedOkamiAgain && !tasks.checkedClosedWing });
     push({ type:'item', id:'ledger', area:'closedWing', x:6.0, y:6.1, kind:'ledger', prompt:'古い台帳を読む', active: tasks.checkedClosedWing && !tasks.readLedger });
     push({ type:'npc', id:'guide', area:'closedWing', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'closedWing' });
+    push({ type:'npc', id:'okami3', area:'lobby', x:5.7, y:6.2, kind:'okami', prompt:'女将に話しかける', active: tasks.escapedGuide2 && !tasks.finalTalked });
 
     return list.filter(s => s.active);
   }
@@ -904,6 +1125,10 @@
       x.strokeStyle = '#cfb56d'; x.lineWidth = 6; x.beginPath(); x.arc(56, 74, 10, 0, Math.PI*2); x.stroke();
     } else if (kind === 'ledger') {
       o(34, 56, 60, 80, '#6d3a30'); o(42, 66, 44, 60, '#edd9b4'); o(38, 56, 6, 80, '#3d1d17');
+    } else if (kind === 'lantern') {
+      o(58, 26, 10, 108, '#5a4631'); o(42, 48, 42, 48, '#d2b27c'); o(46, 54, 34, 36, '#f3d07a');
+    } else if (kind === 'film') {
+      o(38, 64, 52, 18, '#151618'); o(36, 84, 56, 28, '#2a2d33'); o(48, 88, 12, 20, '#9297a0'); o(68, 88, 12, 20, '#9297a0');
     } else if (kind === 'shrine') {
       o(30, 100, 68, 18, '#6a4827'); o(40, 54, 50, 46, '#9c2f34'); o(52, 34, 26, 20, '#d8c389');
     } else if (kind === 'archiveDoor' || kind === 'closedDoor' || kind === 'door') {
@@ -1006,6 +1231,8 @@
       drawBody(x, { face:'#efdcc7', hair:'#f3f3f1', body:'#335c88', accent:'#e8eef8', sleeve:'#efdcc7', skirt:'#1d3048' }, portrait);
     } else if (kind === 'guest202') {
       drawBody(x, { face:'#f0ddc9', hair:'#403126', body:'#6f5a45', accent:'#c9b89a', sleeve:'#f0ddc9', skirt:'#514234' }, portrait);
+    } else if (kind === 'guest203') {
+      drawBody(x, { face:'#edd9c4', hair:'#1b1f26', body:'#737b87', accent:'#d7dee8', sleeve:'#edd9c4', skirt:'#49505b' }, portrait);
     } else if (kind === 'guide') {
       drawBody(x, { face:'#e7dccf', hair:'#4a545f', body:'#2d4b6b', accent:'#eef1f5', sleeve:'#d6d9df', skirt:'#223447', eye:'red', helmet:true, flag:true }, portrait);
       if (portrait) {
@@ -1066,8 +1293,10 @@
 
     drawSprites(zBuffer);
     drawAreaSigns(zBuffer);
+    drawAreaDecor();
     if (state.phase === 'night') drawNightEffects(dt);
     if (state.chaseActive) drawChaseWarning();
+    drawVignette();
   }
 
   function drawFloorPattern(area) {
@@ -1144,6 +1373,40 @@
     }
   }
 
+
+function drawAreaDecor() {
+  const name = player.area;
+  if (name === 'lobby') {
+    g.fillStyle = 'rgba(230,180,90,.08)';
+    g.fillRect(18, 26, 52, 80); g.fillRect(OFF_W-72, 24, 48, 78);
+  }
+  if (name === 'hall' || name === 'courtyard') {
+    for (let i=0;i<3;i++) {
+      const px = 60 + i*110;
+      const glow = g.createRadialGradient(px, 52, 2, px, 52, 38);
+      glow.addColorStop(0, 'rgba(243,201,118,.20)');
+      glow.addColorStop(1, 'rgba(243,201,118,0)');
+      g.fillStyle = glow; g.beginPath(); g.arc(px, 52, 38, 0, Math.PI*2); g.fill();
+    }
+  }
+  if (name === 'courtyard') {
+    g.fillStyle = 'rgba(120,160,190,.06)';
+    for (let i=0;i<18;i++) g.fillRect((i*23 + performance.now()*0.03)%OFF_W, 0, 1, OFF_H);
+  }
+  if (name === 'annex') {
+    g.fillStyle = 'rgba(180,210,230,.04)';
+    g.fillRect(0, 0, OFF_W, OFF_H);
+  }
+}
+
+function drawVignette() {
+  const grad = g.createRadialGradient(OFF_W/2, OFF_H/2, OFF_H*0.18, OFF_W/2, OFF_H/2, OFF_W*0.7);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,.36)');
+  g.fillStyle = grad;
+  g.fillRect(0,0,OFF_W,OFF_H);
+}
+
   function drawNightEffects(dt) {
     g.fillStyle = 'rgba(6, 12, 20, 0.24)'; g.fillRect(0, 0, OFF_W, OFF_H);
     g.fillStyle = 'rgba(255,255,255,0.03)';
@@ -1189,7 +1452,7 @@
     const dy = player.y - guide.y;
     const d = Math.hypot(dx, dy);
     if (d < 0.58) {
-      endGame('誘導員に捕まった', '青いノートを持ったまま順番から外れたあなたを、白ヘルメットの誘導員が静かに回収した。v15では、宿帳庫から帳場までの逃走がゲームオーバー条件付きで入っています。');
+      endGame('誘導員に捕まった', '青いノートを持ったまま順番から外れたあなたを、白ヘルメットの誘導員が静かに回収した。v16では、宿帳庫と離れ通路の二段階追跡がゲームオーバー条件付きで入っています。');
       return;
     }
     const move = guide.speed * dt;
@@ -1353,6 +1616,15 @@
   actBtn.addEventListener('click', act);
   dialogueBox.addEventListener('click', act);
   setupMovePad();
+
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+let __lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - __lastTouchEnd < 320) e.preventDefault();
+  __lastTouchEnd = now;
+}, { passive: false });
+document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
   window.addEventListener('resize', resize);
 
   resize();
