@@ -1,3 +1,4 @@
+
 :root {
   --fg: #f5efe5;
   --muted: rgba(245, 239, 229, 0.76);
@@ -6,6 +7,7 @@
   --border: rgba(255,255,255,0.12);
   --accent: #cfaa74;
   --gold: #f2d581;
+  --danger: #d76464;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
@@ -29,7 +31,7 @@ body { position: fixed; inset: 0; }
 }
 .title-body::after,
 .play-body::after {
-  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .06;
+  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .05;
   background-image: radial-gradient(circle, rgba(255,255,255,.8) 0 1px, transparent 1px);
   background-size: 8px 8px;
 }
@@ -40,7 +42,7 @@ body { position: fixed; inset: 0; }
   width: min(100%, 860px); border-radius: 28px; background: var(--panel-strong); border: 1px solid var(--border);
   box-shadow: 0 18px 64px rgba(0,0,0,.52); padding: 28px 22px 24px;
 }
-.title-shell-v14 {
+.title-shell-v15 {
   background:
     radial-gradient(circle at 50% 18%, rgba(205, 155, 84, .08), transparent 24%),
     linear-gradient(180deg, rgba(6,9,16,.94), rgba(4,5,10,.98));
@@ -51,6 +53,7 @@ body { position: fixed; inset: 0; }
 .title-roman { letter-spacing: .45em; font-size: 16px; color: var(--muted); margin-top: 8px; }
 .title-copy { margin: 28px 0 0; font-size: clamp(18px, 2.7vw, 28px); line-height: 1.75; }
 .title-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 30px; }
+.title-actions.single { grid-template-columns: 1fr 1fr; }
 .title-btn, .mini-btn, .act-btn, .menu-btn {
   text-decoration: none; color: var(--fg); border: 1px solid rgba(255,255,255,.16);
   background: rgba(18,16,26,.95); border-radius: 18px; display: inline-flex; align-items: center;
@@ -81,10 +84,10 @@ body { position: fixed; inset: 0; }
 .hud-chip.accent { color: var(--gold); }
 .map-frame { border-radius: 18px; padding: 8px 10px 10px; }
 .map-title { text-align: center; color: var(--muted); font-size: 11px; letter-spacing: .18em; margin-bottom: 4px; }
-#miniMap { width: 190px; height: 84px; display: block; border-radius: 12px; background: rgba(0,0,0,.35); }
+#miniMap { width: 220px; height: 98px; display: block; border-radius: 12px; background: rgba(0,0,0,.35); }
 .objective-box {
   position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 110px); transform: translateX(-50%); z-index: 19;
-  min-width: min(86vw, 680px); text-align: center; padding: 12px 16px; border-radius: 16px; font-size: 16px;
+  min-width: min(90vw, 760px); text-align: center; padding: 12px 16px; border-radius: 16px; font-size: 16px;
 }
 .prompt-box {
   position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 162px); transform: translateX(-50%); z-index: 19;
@@ -96,10 +99,16 @@ body { position: fixed; inset: 0; }
 }
 .dialogue-box {
   position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 10px); z-index: 24;
-  pointer-events: auto; border-radius: 18px; padding: 16px;
+  pointer-events: auto; border-radius: 18px; padding: 14px;
 }
+.dialogue-layout { display: grid; grid-template-columns: 140px 1fr; gap: 14px; align-items: start; }
+.portrait-canvas {
+  width: 140px; height: 172px; border-radius: 14px; border: 1px solid rgba(255,255,255,.09);
+  background: linear-gradient(180deg, rgba(23,28,39,.9), rgba(8,9,14,.95));
+}
+.dialogue-main { min-width: 0; }
 .speaker-label { color: var(--accent); font-weight: 800; margin-bottom: 10px; }
-.dialogue-text { font-size: 18px; line-height: 1.8; min-height: 70px; }
+.dialogue-text { font-size: 18px; line-height: 1.8; min-height: 96px; }
 .dialogue-help { color: var(--muted); font-size: 13px; margin-top: 10px; }
 .mini-btn { min-height: 48px; min-width: 88px; padding: 0 14px; font-size: 14px; pointer-events: auto; }
 .menu-panel {
@@ -142,11 +151,13 @@ body { position: fixed; inset: 0; }
 @media (orientation: landscape) {
   .rotate-hint { display: none; }
 }
-@media (max-width: 840px) {
-  .title-actions { grid-template-columns: 1fr; }
+@media (max-width: 900px) {
+  .title-actions, .title-actions.single { grid-template-columns: 1fr; }
   .hud-row.center { left: auto; right: 12px; transform: none; top: calc(env(safe-area-inset-top) + 66px); }
-  #miniMap { width: 154px; height: 68px; }
+  #miniMap { width: 170px; height: 76px; }
   .map-frame { padding: 7px 8px 8px; }
   .objective-box { width: calc(100vw - 24px); min-width: auto; font-size: 15px; }
-  .dialogue-text { font-size: 16px; min-height: 62px; }
+  .dialogue-layout { grid-template-columns: 92px 1fr; gap: 10px; }
+  .portrait-canvas { width: 92px; height: 112px; }
+  .dialogue-text { font-size: 16px; min-height: 82px; }
 }

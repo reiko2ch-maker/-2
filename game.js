@@ -1,11 +1,12 @@
+
 (function () {
   const canvas = document.getElementById('gameCanvas');
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d', { alpha: false });
   const off = document.createElement('canvas');
-  const OFF_W = 360;
-  const OFF_H = 202;
+  const OFF_W = 420;
+  const OFF_H = 236;
   off.width = OFF_W;
   off.height = OFF_H;
   const g = off.getContext('2d', { alpha: false });
@@ -13,6 +14,10 @@
 
   const mapCanvas = document.getElementById('miniMap');
   const mapCtx = mapCanvas.getContext('2d', { alpha: false });
+  const portraitCanvas = document.getElementById('portraitCanvas');
+  const portraitCtx = portraitCanvas.getContext('2d', { alpha: true });
+  portraitCtx.imageSmoothingEnabled = false;
+
   const hud = document.getElementById('hud');
   const dayLabel = document.getElementById('dayLabel');
   const phaseLabel = document.getElementById('phaseLabel');
@@ -35,9 +40,9 @@
   const movePad = document.getElementById('movePad');
   const moveKnob = document.getElementById('moveKnob');
 
-  const STORAGE_KEY = 'yoinado_v14_github_save';
-  const FOV = Math.PI / 3.1;
-  const MAX_DEPTH = 24;
+  const STORAGE_KEY = 'yoinado_v15_github_save';
+  const FOV = Math.PI / 3.0;
+  const MAX_DEPTH = 26;
 
   const state = {
     step: 0,
@@ -53,6 +58,10 @@
     pulse: 0,
     areaFlash: 0,
     menuOpen: false,
+    chaseActive: false,
+    chasedBefore: false,
+    lastStatusTimer: 0,
+    portraitKind: 'narrator',
   };
 
   const tasks = {
@@ -62,7 +71,13 @@
     talkedMaid: false,
     answeredPhone: false,
     checkedBath: false,
+    heard202: false,
+    gotMasterKey: false,
     gotNotebook: false,
+    escapedGuide: false,
+    talkedOkamiAgain: false,
+    checkedClosedWing: false,
+    readLedger: false,
   };
 
   const player = {
@@ -71,7 +86,15 @@
     a: -0.05,
     area: 'lobby',
     radius: 0.18,
-    speed: 2.25,
+    speed: 2.3,
+  };
+
+  const guide = {
+    x: 10.0,
+    y: 2.0,
+    area: 'archive',
+    active: false,
+    speed: 1.18,
   };
 
   const keys = { w:false, a:false, s:false, d:false, shift:false };
@@ -85,7 +108,7 @@
       floorA: '#6a573f', floorB: '#5a4934', ceilA: '#2a2430', ceilB: '#19151d',
       map: [
         '################',
-        '#......WWWW....#',
+        '#..KKK.WWWW....#',
         '#......W..W....#',
         '#......W..W....#',
         '#......WWWW....#',
@@ -98,10 +121,12 @@
       spawns: {
         start: { x: 2.4, y: 8.4, a: -0.02 },
         fromHall: { x: 12.7, y: 8.0, a: Math.PI },
+        fromKitchen: { x: 2.8, y: 3.8, a: 1.2 },
       },
       signs: [
         { x: 2.5, y: 7.1, text: '帳場' },
         { x: 12.6, y: 8.7, text: '客室廊下' },
+        { x: 2.8, y: 1.6, text: '厨房' },
       ]
     },
     hall: {
@@ -116,21 +141,24 @@
         '#......................#',
         '#......................#',
         '#......................#',
-        '#....SSSSSSSSSS........#',
+        '#....SSSSSSSSSS..GG....#',
         '#......................#',
         '########################'
       ],
       spawns: {
         fromLobby: { x: 2.0, y: 7.8, a: 0 },
-        fromRoom: { x: 9.4, y: 5.1, a: Math.PI },
+        fromRoom: { x: 5.8, y: 5.0, a: Math.PI },
+        fromRoom202: { x: 11.6, y: 5.0, a: Math.PI },
         fromBath: { x: 18.0, y: 5.0, a: Math.PI },
         fromArchive: { x: 14.0, y: 2.0, a: Math.PI / 2 },
+        fromClosedWing: { x: 18.4, y: 7.2, a: Math.PI },
       },
       signs: [
         { x: 4.2, y: 2.0, text: '201' },
         { x: 11.2, y: 2.0, text: '202' },
         { x: 18.9, y: 2.0, text: '浴場前' },
         { x: 14.3, y: 7.7, text: '北棟・宿帳庫' },
+        { x: 18.8, y: 7.7, text: '閉鎖棟' },
       ]
     },
     room201: {
@@ -147,12 +175,25 @@
         '#..........#',
         '############'
       ],
-      spawns: {
-        door: { x: 2.0, y: 5.0, a: 0 },
-      },
-      signs: [
-        { x: 5.9, y: 1.6, text: '201号室' },
-      ]
+      spawns: { door: { x: 2.0, y: 5.0, a: 0 } },
+      signs: [{ x: 5.9, y: 1.6, text: '201号室' }]
+    },
+    room202: {
+      name: '202号室',
+      skyTop: '#16171f', skyBottom: '#5a4b38',
+      floorA: '#75694d', floorB: '#665842', ceilA: '#262128', ceilB: '#18161b',
+      map: [
+        '############',
+        '#....SS....#',
+        '#..........#',
+        '#..TT......#',
+        '#..........#',
+        '#..........#',
+        '#..........#',
+        '############'
+      ],
+      spawns: { door: { x: 2.0, y: 5.0, a: 0 } },
+      signs: [{ x: 5.9, y: 1.6, text: '202号室' }]
     },
     bath: {
       name: '浴場前',
@@ -168,53 +209,112 @@
         '#............#',
         '##############'
       ],
-      spawns: {
-        door: { x: 2.0, y: 5.0, a: 0 },
-      },
-      signs: [
-        { x: 7.0, y: 1.8, text: '浴場前' },
-      ]
+      spawns: { door: { x: 2.0, y: 5.0, a: 0 } },
+      signs: [{ x: 7.0, y: 1.8, text: '浴場前' }]
+    },
+    kitchen: {
+      name: '厨房',
+      skyTop: '#15161c', skyBottom: '#423221',
+      floorA: '#66605a', floorB: '#4e4842', ceilA: '#201d21', ceilB: '#151218',
+      map: [
+        '##############',
+        '#............#',
+        '#....KKKK....#',
+        '#............#',
+        '#....TT......#',
+        '#............#',
+        '#............#',
+        '##############'
+      ],
+      spawns: { door: { x: 10.8, y: 5.0, a: Math.PI } },
+      signs: [{ x: 5.0, y: 1.7, text: '厨房' }]
     },
     archive: {
       name: '宿帳庫',
       skyTop: '#0a1016', skyBottom: '#23343b',
       floorA: '#48423b', floorB: '#3d3732', ceilA: '#171b21', ceilB: '#0f1217',
       map: [
-        '##############',
-        '#....NNNN....#',
-        '#............#',
-        '#............#',
-        '#...KK.......#',
-        '#............#',
-        '#............#',
-        '##############'
+        '################',
+        '#....NNNNNN....#',
+        '#..............#',
+        '#..............#',
+        '#...KK.........#',
+        '#..............#',
+        '#..............#',
+        '#..........TT..#',
+        '################'
       ],
-      spawns: {
-        entry: { x: 2.0, y: 5.0, a: 0 },
-      },
-      signs: [
-        { x: 6.8, y: 1.8, text: '宿帳庫' },
-      ]
+      spawns: { entry: { x: 2.0, y: 7.0, a: 0 } },
+      signs: [{ x: 8.0, y: 1.8, text: '宿帳庫' }]
+    },
+    closedWing: {
+      name: '閉鎖棟',
+      skyTop: '#101018', skyBottom: '#2f2530',
+      floorA: '#55473c', floorB: '#46392f', ceilA: '#1b1820', ceilB: '#121015',
+      map: [
+        '##################',
+        '#................#',
+        '#..SSSSS.........#',
+        '#................#',
+        '#.............TT.#',
+        '#................#',
+        '#....AAAA........#',
+        '#................#',
+        '#................#',
+        '##################'
+      ],
+      spawns: { entry: { x: 2.0, y: 8.0, a: 0 } },
+      signs: [{ x: 13.8, y: 3.7, text: '祭壇前' }, { x: 6.0, y: 1.8, text: '閉鎖棟' }]
     }
   };
 
   const textures = createTextures();
   const spriteCanvases = {
-    okami: makeSprite('okami'),
-    guest: makeSprite('guest'),
-    maid: makeSprite('maid'),
-    ghost: makeSprite('ghost'),
-    tray: makeSprite('tray'),
-    phone: makeSprite('phone'),
-    notebook: makeSprite('notebook'),
-    bathSign: makeSprite('bathSign'),
+    okami: makeCharacterSprite('okami', false),
+    guest: makeCharacterSprite('guest', false),
+    maid: makeCharacterSprite('maid', false),
+    guest202: makeCharacterSprite('guest202', false),
+    guide: makeCharacterSprite('guide', false),
+    narrator: makePortrait('narrator'),
+    okamiPortrait: makePortrait('okami'),
+    guestPortrait: makePortrait('guest'),
+    maidPortrait: makePortrait('maid'),
+    guest202Portrait: makePortrait('guest202'),
+    guidePortrait: makePortrait('guide'),
+    tray: makeItemSprite('tray'),
+    phone: makeItemSprite('phone'),
+    notebook: makeItemSprite('notebook'),
+    bathSign: makeItemSprite('bathSign'),
+    key: makeItemSprite('key'),
+    ledger: makeItemSprite('ledger'),
+    shrine: makeItemSprite('shrine'),
+    archiveDoor: makeItemSprite('archiveDoor'),
+    closedDoor: makeItemSprite('closedDoor'),
+    door: makeItemSprite('door'),
+    signHall: makeItemSprite('bathSign'),
+  };
+
+  const speakerPortraitMap = {
+    '記録': 'narrator',
+    '女将': 'okamiPortrait',
+    '201号室の客': 'guestPortrait',
+    '仲居・篠': 'maidPortrait',
+    '202号室の客': 'guest202Portrait',
+    '誘導員': 'guidePortrait',
+    '受話器の向こう': 'guidePortrait',
   };
 
   function currentArea() { return areas[player.area]; }
   function currentMap() { return currentArea().map; }
 
-  function setStatus(text) { statusBox.textContent = text; }
-  function setObjective(text) { state.objective = text; objectiveBox.textContent = text; }
+  function setStatus(text, seconds=2.6) {
+    statusBox.textContent = text;
+    state.lastStatusTimer = seconds;
+  }
+  function setObjective(text) {
+    state.objective = text;
+    objectiveBox.textContent = text;
+  }
 
   function tileAt(x, y) {
     const mx = Math.floor(x), my = Math.floor(y);
@@ -232,38 +332,49 @@
     player.a = sp.a;
     areaLabel.textContent = areas[areaId].name;
     state.areaFlash = 1;
+    if (state.chaseActive) syncGuideSpawnForArea(areaId);
   }
 
   function changeArea(areaId, spawnKey) {
     spawnAt(areaId, spawnKey);
-    setStatus('エリア移動: ' + areas[areaId].name);
+    setStatus('エリア移動: ' + areas[areaId].name, 1.6);
+    if (state.chaseActive && areaId === 'lobby' && !tasks.escapedGuide) {
+      state.chaseActive = false;
+      guide.active = false;
+      tasks.escapedGuide = true;
+      state.step = 9;
+      setObjective('女将に追跡のことを伝える');
+      showDialogue([
+        ['記録', '帳場まで戻った瞬間、廊下の向こうにいた誘導員の気配が途切れた。'],
+        ['記録', '女将だけが、逃げ帰ってくることを最初から知っていたように立っている。']
+      ]);
+    }
   }
 
   function startNew() {
-    tasks.talkedOkami = false;
-    tasks.gotTray = false;
-    tasks.servedGuest = false;
-    tasks.talkedMaid = false;
-    tasks.answeredPhone = false;
-    tasks.checkedBath = false;
-    tasks.gotNotebook = false;
+    for (const key of Object.keys(tasks)) tasks[key] = false;
     state.step = 0;
     state.day = 1;
     state.phase = 'day';
     state.inDialogue = false;
     state.ending = false;
     state.dialogueQueue = [];
+    state.chaseActive = false;
+    state.chasedBefore = false;
+    state.menuOpen = false;
     dayLabel.textContent = 'DAY 1';
     phaseLabel.textContent = '昼勤務';
     endingScreen.classList.add('hidden');
     dialogueBox.classList.add('hidden');
     promptBox.classList.add('hidden');
     spawnAt('lobby', 'start');
+    guide.active = false;
     setObjective('女将に話しかける');
-    setStatus('起動完了 / v14 GitHub Edition');
+    setStatus('起動完了 / v15 GitHub Edition', 3.0);
     showDialogue([
       ['記録', '住み込み初日。館内は静かすぎるほど静かだ。'],
-      ['記録', '女将に挨拶し、最初の仕事を受ける。客の証言は、夜の事件にそのまま繋がる。']
+      ['記録', '今夜は客の話を拾うほど、深夜に調べられる範囲が増えていく。'],
+      ['記録', 'ただし、宿帳庫のノートを手にした瞬間だけは、走る準備をしておいた方がいい。']
     ]);
   }
 
@@ -271,32 +382,36 @@
     return {
       player: { x: player.x, y: player.y, a: player.a, area: player.area },
       tasks: { ...tasks },
+      guide: { ...guide },
       state: {
         step: state.step,
         day: state.day,
         phase: state.phase,
         objective: state.objective,
         hudMinimal: state.hudMinimal,
+        chaseActive: state.chaseActive,
       }
     };
   }
 
   function saveGame() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(getSaveData()));
-    setStatus('保存した / v14');
+    setStatus('保存した / v15', 1.8);
   }
 
   function loadGame() {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) { setStatus('保存データなし'); return false; }
+    if (!raw) { setStatus('保存データなし', 1.8); return false; }
     try {
       const data = JSON.parse(raw);
       Object.assign(tasks, data.tasks || {});
       Object.assign(player, data.player || {});
+      Object.assign(guide, data.guide || {});
       state.step = data.state?.step || 0;
       state.day = data.state?.day || 1;
       state.phase = data.state?.phase || 'day';
       state.hudMinimal = !!data.state?.hudMinimal;
+      state.chaseActive = !!data.state?.chaseActive;
       dayLabel.textContent = 'DAY ' + state.day;
       phaseLabel.textContent = state.phase === 'night' ? '深夜調査' : '昼勤務';
       areaLabel.textContent = areas[player.area].name;
@@ -307,10 +422,10 @@
       promptBox.classList.add('hidden');
       state.ending = false;
       state.inDialogue = false;
-      setStatus('ロードした / v14');
+      setStatus('ロードした / v15', 1.8);
       return true;
     } catch (err) {
-      setStatus('ロード失敗');
+      setStatus('ロード失敗', 1.8);
       return false;
     }
   }
@@ -323,6 +438,12 @@
   function toggleMenu(force) {
     state.menuOpen = typeof force === 'boolean' ? force : !state.menuOpen;
     menuPanel.classList.toggle('hidden', !state.menuOpen);
+  }
+
+  function updatePortrait(kind) {
+    portraitCtx.clearRect(0, 0, portraitCanvas.width, portraitCanvas.height);
+    const sprite = spriteCanvases[kind] || spriteCanvases.narrator;
+    portraitCtx.drawImage(sprite, 0, 0, portraitCanvas.width, portraitCanvas.height);
   }
 
   function showDialogue(lines, onEnd) {
@@ -348,10 +469,13 @@
     const [speaker, text] = state.dialogueQueue.shift();
     speakerLabel.textContent = speaker;
     dialogueText.textContent = text;
+    updatePortrait(speakerPortraitMap[speaker] || 'narrator');
   }
 
   function endGame(title, text) {
     state.ending = true;
+    state.chaseActive = false;
+    guide.active = false;
     endingTitle.textContent = title;
     endingText.textContent = text;
     endingScreen.classList.remove('hidden');
@@ -363,7 +487,7 @@
       case 'okami':
         showDialogue([
           ['女将', '今日から帳場と二階の手伝いに入ってもらいます。まずは201号室へお茶を。'],
-          ['女将', 'この宿は、夜になると音がよく響きます。内線が鳴っても、慌てず順番に。'],
+          ['女将', '二階の客は、仕事のついでに余計なことまで喋ります。聞いた内容まで持ってきてください。'],
           ['記録', '帳場の横に置かれた配膳盆を持っていく。']
         ], () => {
           tasks.talkedOkami = true;
@@ -382,35 +506,11 @@
           setStatus('配膳盆を持った');
         });
         break;
-      case 'toHall':
-        changeArea('hall', 'fromLobby');
-        break;
-      case 'toLobby':
-        changeArea('lobby', 'fromHall');
-        break;
-      case 'toRoom201':
-        changeArea('room201', 'door');
-        break;
-      case 'room201Exit':
-        changeArea('hall', 'fromRoom');
-        break;
-      case 'toBath':
-        changeArea('bath', 'door');
-        break;
-      case 'bathExit':
-        changeArea('hall', 'fromBath');
-        break;
-      case 'toArchive':
-        changeArea('archive', 'entry');
-        break;
-      case 'archiveExit':
-        changeArea('hall', 'fromArchive');
-        break;
       case 'guest':
         showDialogue([
           ['201号室の客', '……遅かったな。昨日も、同じ時間に湯呑みが二つ来た。'],
           ['201号室の客', '昨夜、浴場前で濡れた足音を聞いた。子どもの足音みたいに軽かった。'],
-          ['201号室の客', '女将には言うな。北の宿帳庫に青いノートがある。事件を調べるなら、あれを見ろ。']
+          ['201号室の客', 'もし本気で調べる気なら、廊下の仲居と202の客にも当たれ。二人とも、何かを見て黙ってる。']
         ], () => {
           tasks.servedGuest = true;
           state.step = 3;
@@ -420,9 +520,9 @@
         break;
       case 'maid':
         showDialogue([
-          ['仲居・篠', '青いノート？ そんな物は帳場にはないはずです。'],
-          ['仲居・篠', 'でも、さっきから内線が一度も止まらないんです。誰もいない浴場前から。'],
-          ['仲居・篠', '先に帳場へ戻ってください。女将が電話口で待っています。']
+          ['仲居・篠', '202の方、さっきから部屋の外を何度も確認しているんです。'],
+          ['仲居・篠', 'でも、その前に帳場へ戻ってください。黒電話がずっと鳴っていて……女将があなたを呼んでいます。'],
+          ['仲居・篠', '深夜に動くなら、聞いた話を順番に繋げてください。順番を間違えると、帰れなくなるから。']
         ], () => {
           tasks.talkedMaid = true;
           state.step = 4;
@@ -433,8 +533,8 @@
       case 'phone':
         showDialogue([
           ['受話器の向こう', '……二つ、足りない。'],
-          ['受話器の向こう', '浴場の鏡を見ろ。帳場の女は、順番を変えている。'],
-          ['女将', '今の、聞きましたか。夜の見回りに入ってください。鍵は開けてあります。']
+          ['受話器の向こう', '浴場の鏡を見ろ。次に二〇二だ。そのあとで鍵を取れ。'],
+          ['女将', '今の、聞きましたか。夜の見回りに入ってください。順番だけは、守るように。']
         ], () => {
           tasks.answeredPhone = true;
           state.step = 5;
@@ -446,37 +546,117 @@
         break;
       case 'mirror':
         showDialogue([
-          ['記録', '鏡の曇りを拭うと、背後にいないはずの子どもが立っていた。'],
-          ['記録', '次の瞬間、鏡には「帳場ではなく北へ」と指でなぞった跡が残る。']
+          ['記録', '鏡の曇りを拭うと、背後に子どもの影が一瞬だけ立っていた。'],
+          ['記録', '次の瞬間、鏡には「二〇二へ」と指でなぞった跡が残る。']
         ], () => {
           tasks.checkedBath = true;
           state.step = 6;
+          setObjective('202号室の客から話を聞く');
+          setStatus('202号室へ向かう');
+        });
+        break;
+      case 'guest202':
+        showDialogue([
+          ['202号室の客', '白いヘルメットの男を見た。館内図も持たず、ただ廊下の角に立ってた。'],
+          ['202号室の客', '俺が目を離した瞬間、浴場前から宿帳庫の方へ滑るみたいに消えた。'],
+          ['202号室の客', '古い北棟を開けるなら、厨房の壁棚に予備鍵がある。従業員しか知らない。']
+        ], () => {
+          tasks.heard202 = true;
+          state.step = 7;
+          setObjective('厨房で予備鍵を取る');
+          setStatus('厨房で鍵を探す');
+        });
+        break;
+      case 'key':
+        showDialogue([
+          ['記録', '壁棚の奥から、錆びた予備鍵と赤いタグが出てきた。'],
+          ['記録', 'タグには「北棟・宿帳庫」とだけ書かれている。']
+        ], () => {
+          tasks.gotMasterKey = true;
+          state.step = 8;
           setObjective('北の宿帳庫で青いノートを探す');
-          setStatus('宿帳庫を調べる');
+          setStatus('宿帳庫へ');
         });
         break;
       case 'notebook':
         showDialogue([
           ['記録', '青いノートの最後の行には、宿泊者名簿から消えた名前が並んでいる。'],
           ['記録', 'その一番下に、今夜の自分の名前があった。'],
-          ['記録', '女将は事件を隠していたのではない。次の消失順を、静かに待っていた。']
+          ['誘導員', '順番を、外れたな。']
         ], () => {
           tasks.gotNotebook = true;
-          state.step = 7;
+          state.step = 9;
+          state.chaseActive = true;
+          state.chasedBefore = true;
+          syncGuideSpawnForArea(player.area);
+          setObjective('誘導員から逃げて帳場へ戻る');
+          setStatus('追跡開始: 帳場まで逃げろ', 3.0);
+        });
+        break;
+      case 'okami2':
+        showDialogue([
+          ['女将', '逃げ切れたんですね。なら、次は閉鎖棟です。'],
+          ['女将', '宿帳庫のノートだけでは足りません。あそこに残った台帳が、失踪の順番を決めている。'],
+          ['女将', '誘導員が現れたなら、もう隠し通せません。閉鎖棟の祭壇前にある台帳を見てください。']
+        ], () => {
+          tasks.talkedOkamiAgain = true;
+          state.step = 10;
+          setObjective('閉鎖棟の祭壇前で古い台帳を調べる');
+          setStatus('閉鎖棟が開いた');
+        });
+        break;
+      case 'ledger':
+        showDialogue([
+          ['記録', '台帳には、失踪した宿泊客が「誘導完了」とだけ記されていた。'],
+          ['記録', '最後の空欄には、女将の筆跡で「次: 誘導員を見た者」とある。'],
+          ['記録', 'つまり今夜の順番は、自分だけではなかった。宿の全員が、もう選ばれている。']
+        ], () => {
+          tasks.readLedger = true;
+          state.step = 11;
           saveGame();
-          endGame('宿帳に書かれた名前', '仕事の中で集めた証言が、失踪の順番を指していた。帳場に戻る前に夜は終わった。続きを作るなら、次は女将との対決と北棟の奥へ進む章。');
+          endGame('夜の順番表', '青いノート、予備鍵、閉鎖棟の台帳。集めた断片が一つに繋がり、旅館全体が「誘導」のために動いていたことが分かった。v15ではここまで。次は女将と誘導員の正面対決、宿泊客の救出、複数エンディングに伸ばせます。');
+        });
+        break;
+      case 'toHall': changeArea('hall', 'fromLobby'); break;
+      case 'toLobby': changeArea('lobby', 'fromHall'); break;
+      case 'toKitchen': changeArea('kitchen', 'door'); break;
+      case 'kitchenExit': changeArea('lobby', 'fromKitchen'); break;
+      case 'toRoom201': changeArea('room201', 'door'); break;
+      case 'room201Exit': changeArea('hall', 'fromRoom'); break;
+      case 'toRoom202': changeArea('room202', 'door'); break;
+      case 'room202Exit': changeArea('hall', 'fromRoom202'); break;
+      case 'toBath': changeArea('bath', 'door'); break;
+      case 'bathExit': changeArea('hall', 'fromBath'); break;
+      case 'toArchive': if (tasks.gotMasterKey) changeArea('archive', 'entry'); break;
+      case 'archiveExit': changeArea('hall', 'fromArchive'); break;
+      case 'toClosedWing': if (tasks.talkedOkamiAgain) changeArea('closedWing', 'entry'); break;
+      case 'closedWingExit': changeArea('hall', 'fromClosedWing'); break;
+      case 'shrine':
+        showDialogue([
+          ['記録', '祭壇には使い古された誘導旗と、白いヘルメットの写真が置かれている。'],
+          ['記録', '誘導員は怪異ではなく、この宿で順番を運ぶ役目そのものだった。'],
+          ['記録', '台帳はすぐ近くにある。今のうちに読めば、夜の仕組みが分かる。']
+        ], () => {
+          tasks.checkedClosedWing = true;
+          setObjective('祭壇前の古い台帳を読む');
+          setStatus('台帳を読める');
         });
         break;
     }
   }
 
-  const areaMapLayout = {
-    lobby: { x: 10, y: 20, w: 42, h: 42, label: '帳場' },
-    hall: { x: 60, y: 20, w: 52, h: 42, label: '廊下' },
-    room201: { x: 118, y: 8, w: 54, h: 24, label: '201' },
-    bath: { x: 118, y: 38, w: 54, h: 24, label: '浴場前' },
-    archive: { x: 88, y: 62, w: 54, h: 18, label: '宿帳庫' },
-  };
+  function areaMapLayout() {
+    return {
+      lobby: { x: 10, y: 20, w: 46, h: 42, label: '帳場' },
+      hall: { x: 64, y: 20, w: 64, h: 42, label: '廊下' },
+      room201: { x: 136, y: 6, w: 48, h: 22, label: '201' },
+      room202: { x: 136, y: 30, w: 48, h: 22, label: '202' },
+      bath: { x: 192, y: 8, w: 52, h: 22, label: '浴場' },
+      kitchen: { x: 10, y: 68, w: 46, h: 20, label: '厨房' },
+      archive: { x: 86, y: 68, w: 58, h: 20, label: '宿帳庫' },
+      closedWing: { x: 156, y: 68, w: 74, h: 20, label: '閉鎖棟' },
+    };
+  }
 
   function miniMapObjectiveArea() {
     if (state.step <= 1) return 'lobby';
@@ -484,25 +664,28 @@
     if (state.step === 3) return 'hall';
     if (state.step === 4) return 'lobby';
     if (state.step === 5) return 'bath';
-    if (state.step === 6) return 'archive';
+    if (state.step === 6) return 'room202';
+    if (state.step === 7) return 'kitchen';
+    if (state.step === 8) return 'archive';
+    if (state.step === 9) return tasks.escapedGuide ? 'lobby' : 'hall';
+    if (state.step === 10) return 'closedWing';
     return player.area;
   }
 
   function drawMiniMap() {
+    const layout = areaMapLayout();
     mapCtx.fillStyle = '#0d1016';
     mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
-    mapCtx.strokeStyle = 'rgba(255,255,255,.1)';
+    mapCtx.strokeStyle = 'rgba(255,255,255,.10)';
     mapCtx.lineWidth = 2;
     mapCtx.beginPath();
-    mapCtx.moveTo(52, 41); mapCtx.lineTo(60, 41);
-    mapCtx.lineTo(112, 41); mapCtx.lineTo(118, 20);
-    mapCtx.moveTo(112, 41); mapCtx.lineTo(118, 50);
-    mapCtx.moveTo(86, 62); mapCtx.lineTo(86, 62);
-    mapCtx.lineTo(86, 68);
+    mapCtx.moveTo(56, 41); mapCtx.lineTo(64, 41); mapCtx.lineTo(128, 41);
+    mapCtx.moveTo(33, 62); mapCtx.lineTo(33, 68);
+    mapCtx.moveTo(96, 62); mapCtx.lineTo(96, 68); mapCtx.lineTo(144, 68);
     mapCtx.stroke();
 
     const target = miniMapObjectiveArea();
-    for (const [key, box] of Object.entries(areaMapLayout)) {
+    for (const [key, box] of Object.entries(layout)) {
       const active = key === player.area;
       const objective = key === target;
       mapCtx.fillStyle = active ? '#cfaa74' : objective ? '#6a8cc5' : '#1d2430';
@@ -514,33 +697,74 @@
       mapCtx.textAlign = 'center';
       mapCtx.fillText(box.label, box.x + box.w / 2, box.y + box.h / 2 + 3);
     }
+    if (state.chaseActive) {
+      const box = layout[player.area];
+      if (box) {
+        mapCtx.fillStyle = 'rgba(215,100,100,.9)';
+        mapCtx.beginPath();
+        mapCtx.arc(box.x + box.w - 8, box.y + 8, 4, 0, Math.PI * 2);
+        mapCtx.fill();
+      }
+    }
+  }
+
+  function syncGuideSpawnForArea(areaId) {
+    if (!state.chaseActive) { guide.active = false; return; }
+    guide.area = areaId;
+    if (areaId === 'archive') {
+      guide.x = 13.2; guide.y = 2.1;
+      guide.active = true;
+    } else if (areaId === 'hall') {
+      guide.x = 20.0; guide.y = 2.0;
+      guide.active = true;
+    } else if (areaId === 'closedWing') {
+      guide.x = 14.5; guide.y = 2.0;
+      guide.active = true;
+    } else {
+      guide.active = false;
+    }
   }
 
   function activeSprites() {
     const list = [];
-    const push = (entry) => {
-      if (entry.area === player.area) list.push(entry);
-    };
+    const push = (entry) => { if (entry.area === player.area) list.push(entry); };
+
     push({ type:'npc', id:'okami', area:'lobby', x:5.7, y:6.2, kind:'okami', prompt:'女将に話しかける', active: !tasks.talkedOkami });
+    push({ type:'npc', id:'okami2', area:'lobby', x:5.7, y:6.2, kind:'okami', prompt:'女将に話しかける', active: tasks.escapedGuide && !tasks.talkedOkamiAgain });
     push({ type:'item', id:'tray', area:'lobby', x:12.8, y:8.2, kind:'tray', prompt:'配膳盆を取る', active: tasks.talkedOkami && !tasks.gotTray });
     push({ type:'portal', id:'toHall', area:'lobby', x:13.6, y:8.0, kind:'signHall', prompt:'客室廊下へ', active: true });
+    push({ type:'portal', id:'toKitchen', area:'lobby', x:2.6, y:1.9, kind:'door', prompt:'厨房へ入る', active: true });
     push({ type:'item', id:'phone', area:'lobby', x:4.3, y:6.4, kind:'phone', prompt:'黒電話に出る', active: tasks.talkedMaid && !tasks.answeredPhone });
 
     push({ type:'portal', id:'toLobby', area:'hall', x:1.8, y:7.8, kind:'signHall', prompt:'帳場へ戻る', active: true });
     push({ type:'portal', id:'toRoom201', area:'hall', x:5.0, y:3.6, kind:'door', prompt:'201号室へ入る', active: true });
+    push({ type:'portal', id:'toRoom202', area:'hall', x:11.0, y:3.6, kind:'door', prompt:'202号室へ入る', active: true });
     push({ type:'portal', id:'toBath', area:'hall', x:18.8, y:3.6, kind:'bathSign', prompt:'浴場前へ行く', active: true });
-    push({ type:'portal', id:'toArchive', area:'hall', x:14.0, y:7.3, kind:'archiveDoor', prompt:'北の宿帳庫へ', active: state.phase === 'night' });
-    push({ type:'npc', id:'maid', area:'hall', x:10.8, y:5.4, kind:'maid', prompt:'仲居・篠に話しかける', active: tasks.servedGuest && !tasks.talkedMaid });
+    push({ type:'portal', id:'toArchive', area:'hall', x:14.0, y:7.3, kind:'archiveDoor', prompt:'北の宿帳庫へ', active: tasks.gotMasterKey });
+    push({ type:'portal', id:'toClosedWing', area:'hall', x:19.0, y:7.3, kind:'closedDoor', prompt:'閉鎖棟へ入る', active: tasks.talkedOkamiAgain });
+    push({ type:'npc', id:'maid', area:'hall', x:9.8, y:5.4, kind:'maid', prompt:'仲居・篠に話しかける', active: tasks.servedGuest && !tasks.talkedMaid });
+    push({ type:'npc', id:'guide', area:'hall', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'hall' });
 
     push({ type:'portal', id:'room201Exit', area:'room201', x:1.6, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
     push({ type:'npc', id:'guest', area:'room201', x:7.4, y:3.1, kind:'guest', prompt:'201号室の客に話しかける', active: tasks.gotTray && !tasks.servedGuest });
 
-    push({ type:'portal', id:'bathExit', area:'bath', x:1.6, y:5.0, kind:'bathSign', prompt:'廊下へ戻る', active: true });
-    push({ type:'item', id:'mirror', area:'bath', x:6.6, y:1.9, kind:'ghost', prompt:'鏡を調べる', active: tasks.answeredPhone && !tasks.checkedBath });
+    push({ type:'portal', id:'room202Exit', area:'room202', x:1.6, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
+    push({ type:'npc', id:'guest202', area:'room202', x:6.6, y:3.2, kind:'guest202', prompt:'202号室の客に話しかける', active: tasks.checkedBath && !tasks.heard202 });
 
-    push({ type:'portal', id:'archiveExit', area:'archive', x:1.6, y:5.0, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
-    push({ type:'ghost', id:'ghost', area:'archive', x:9.8, y:2.6, kind:'ghost', prompt:'', active: state.phase === 'night' && !tasks.gotNotebook });
-    push({ type:'item', id:'notebook', area:'archive', x:4.6, y:4.2, kind:'notebook', prompt:'青いノートを拾う', active: tasks.checkedBath && !tasks.gotNotebook });
+    push({ type:'portal', id:'bathExit', area:'bath', x:1.6, y:5.0, kind:'bathSign', prompt:'廊下へ戻る', active: true });
+    push({ type:'item', id:'mirror', area:'bath', x:6.6, y:1.9, kind:'guide', prompt:'鏡を調べる', active: tasks.answeredPhone && !tasks.checkedBath });
+
+    push({ type:'portal', id:'kitchenExit', area:'kitchen', x:10.8, y:5.0, kind:'door', prompt:'帳場へ戻る', active: true });
+    push({ type:'item', id:'key', area:'kitchen', x:5.2, y:4.2, kind:'key', prompt:'予備鍵を取る', active: tasks.heard202 && !tasks.gotMasterKey });
+
+    push({ type:'portal', id:'archiveExit', area:'archive', x:12.8, y:7.1, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
+    push({ type:'item', id:'notebook', area:'archive', x:4.6, y:4.2, kind:'notebook', prompt:'青いノートを拾う', active: tasks.gotMasterKey && !tasks.gotNotebook });
+    push({ type:'npc', id:'guide', area:'archive', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'archive' });
+
+    push({ type:'portal', id:'closedWingExit', area:'closedWing', x:1.6, y:8.0, kind:'closedDoor', prompt:'廊下へ戻る', active: true });
+    push({ type:'item', id:'shrine', area:'closedWing', x:14.6, y:4.1, kind:'shrine', prompt:'祭壇を調べる', active: tasks.talkedOkamiAgain && !tasks.checkedClosedWing });
+    push({ type:'item', id:'ledger', area:'closedWing', x:6.0, y:6.1, kind:'ledger', prompt:'古い台帳を読む', active: tasks.checkedClosedWing && !tasks.readLedger });
+    push({ type:'npc', id:'guide', area:'closedWing', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'closedWing' });
 
     return list.filter(s => s.active);
   }
@@ -550,10 +774,11 @@
     let nearest = null;
     let nearestDist = 999;
     for (const s of sprites) {
+      if (!s.prompt) continue;
       const dx = s.x - player.x;
       const dy = s.y - player.y;
       const d = Math.hypot(dx, dy);
-      if (d > 1.25) continue;
+      if (d > 1.3) continue;
       const ang = normalizeAngle(Math.atan2(dy, dx) - player.a);
       if (Math.abs(ang) > 0.75) continue;
       if (d < nearestDist) { nearest = s; nearestDist = d; }
@@ -597,19 +822,15 @@
       W: make((x,w,h) => {
         x.fillStyle = '#5b3f2b'; x.fillRect(0,0,w,h);
         x.fillStyle = '#d8cab3'; x.fillRect(7,7,w-14,h-14);
-        x.fillStyle = '#70472f'; x.fillRect(0,0,6,h);
-        x.fillRect(w-6,0,6,h);
-        x.fillRect(0,0,w,6);
-        x.fillRect(0,h-6,w,6);
-        x.fillStyle = 'rgba(0,0,0,.08)';
-        x.fillRect(w/2-2, 7, 4, h-14);
+        x.fillStyle = '#70472f'; x.fillRect(0,0,6,h); x.fillRect(w-6,0,6,h);
+        x.fillRect(0,0,w,6); x.fillRect(0,h-6,w,6);
+        x.fillStyle = 'rgba(0,0,0,.08)'; x.fillRect(w/2-2, 7, 4, h-14);
       }),
       D: make((x,w,h) => {
         x.fillStyle = '#6a2f29'; x.fillRect(0,0,w,h);
         x.fillStyle = '#a65f55'; x.fillRect(8,8,w-16,h-16);
         x.fillStyle = '#e6d1a2'; x.fillRect(w-14,h/2,4,4);
-        x.fillStyle = 'rgba(0,0,0,.15)';
-        x.fillRect(w/2-1, 8, 2, h-16);
+        x.fillStyle = 'rgba(0,0,0,.15)'; x.fillRect(w/2-1, 8, 2, h-16);
       }),
       B: make((x,w,h) => {
         x.fillStyle = '#43525a'; x.fillRect(0,0,w,h);
@@ -626,8 +847,7 @@
       S: make((x,w,h) => {
         x.fillStyle = '#7f5d2a'; x.fillRect(0,0,w,h);
         x.fillStyle = '#d1bb89'; x.fillRect(10,12,w-20,h-24);
-        x.fillStyle = '#694720'; x.fillRect(0,0,w,6);
-        x.fillRect(0,h-6,w,6);
+        x.fillStyle = '#694720'; x.fillRect(0,0,w,6); x.fillRect(0,h-6,w,6);
       }),
       T: make((x,w,h) => {
         x.fillStyle = '#3b2f24'; x.fillRect(0,0,w,h);
@@ -646,103 +866,173 @@
         x.fillStyle = '#3c3027'; x.fillRect(0,0,w,h);
         x.fillStyle = '#625449'; x.fillRect(6,6,w-12,h-12);
       }),
+      A: make((x,w,h) => {
+        x.fillStyle = '#35261c'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#6d3a30'; x.fillRect(12,12,w-24,h-24);
+        x.fillStyle = '#d9c59c'; x.fillRect(18,18,w-36,h-36);
+      }),
+      G: make((x,w,h) => {
+        x.fillStyle = '#2d2533'; x.fillRect(0,0,w,h);
+        x.fillStyle = '#544d68'; x.fillRect(8,8,w-16,h-16);
+        x.fillStyle = '#c3c1cb'; x.fillRect(16,16,w-32,8);
+      }),
     };
   }
 
-  function makeSprite(kind) {
+  function makeItemSprite(kind) {
     const c = document.createElement('canvas');
-    c.width = 96; c.height = 144;
+    c.width = 128; c.height = 180;
     const x = c.getContext('2d');
     x.imageSmoothingEnabled = false;
-    const o = (px, py, w, h, fill, stroke = '#111') => {
+    const o = (px, py, w, h, fill, stroke = '#101010') => {
       x.fillStyle = stroke; x.fillRect(px-1, py-1, w+2, h+2);
       x.fillStyle = fill; x.fillRect(px, py, w, h);
     };
-    if (kind === 'okami') {
-      o(32, 12, 30, 16, '#2b2430');
-      o(35, 24, 24, 18, '#f1e1cb');
-      o(24, 42, 46, 48, '#5d3346');
-      o(18, 46, 10, 24, '#f1e1cb');
-      o(68, 46, 10, 24, '#f1e1cb');
-      o(32, 55, 28, 9, '#d1a267');
-      o(28, 90, 14, 28, '#2f2434');
-      o(52, 90, 14, 28, '#2f2434');
-      o(38, 30, 4, 4, '#111'); o(51, 30, 4, 4, '#111');
-      o(41, 38, 10, 2, '#8d5841', '#8d5841');
-    } else if (kind === 'guest') {
-      o(32, 12, 30, 16, '#252732');
-      o(35, 24, 24, 18, '#efddc9');
-      o(24, 42, 46, 44, '#6d68b3');
-      o(18, 46, 10, 22, '#efddc9');
-      o(68, 46, 10, 22, '#efddc9');
-      o(28, 86, 14, 28, '#50489a');
-      o(52, 86, 14, 28, '#50489a');
-      o(38, 30, 4, 4, '#111'); o(51, 30, 4, 4, '#111');
-      o(38, 38, 16, 2, '#8d5841', '#8d5841');
-    } else if (kind === 'maid') {
-      o(31, 10, 34, 14, '#f5f5f5');
-      o(36, 22, 24, 18, '#efdcc7');
-      o(25, 40, 44, 46, '#34557c');
-      o(19, 44, 10, 24, '#efdcc7');
-      o(69, 44, 10, 24, '#efdcc7');
-      o(30, 86, 14, 28, '#1a2e46');
-      o(50, 86, 14, 28, '#1a2e46');
-      o(39, 29, 4, 4, '#111'); o(52, 29, 4, 4, '#111');
-      o(40, 37, 12, 2, '#845645', '#845645');
-    } else if (kind === 'ghost') {
-      x.globalAlpha = .7;
-      o(32, 12, 30, 18, '#5c6f7f');
-      o(34, 24, 26, 20, '#e3e9ee');
-      o(26, 44, 42, 52, '#d9e4ee');
-      o(18, 48, 10, 26, '#d9e4ee');
-      o(68, 48, 10, 26, '#d9e4ee');
-      o(34, 30, 6, 6, '#111'); o(54, 30, 6, 6, '#111');
-      o(40, 40, 14, 2, '#7a8b98', '#7a8b98');
-      x.globalAlpha = 1;
-    } else if (kind === 'tray') {
-      o(18, 72, 60, 10, '#744d2b');
-      o(22, 54, 18, 18, '#e3e0d7');
-      o(56, 54, 18, 18, '#e3e0d7');
-      o(28, 60, 6, 4, '#7f9eb7');
-      o(62, 60, 6, 4, '#7f9eb7');
+    if (kind === 'tray') {
+      o(22, 102, 84, 14, '#744d2b');
+      o(28, 78, 24, 24, '#e3e0d7'); o(76, 78, 24, 24, '#e3e0d7');
+      o(34, 84, 12, 8, '#7f9eb7'); o(82, 84, 12, 8, '#7f9eb7');
     } else if (kind === 'phone') {
-      o(25, 76, 46, 20, '#1f1f22');
-      o(30, 62, 36, 16, '#27282d');
-      o(42, 56, 12, 8, '#4c4d57');
+      o(34, 98, 60, 26, '#1f1f22'); o(40, 76, 48, 20, '#27282d'); o(52, 68, 24, 8, '#4c4d57');
     } else if (kind === 'notebook') {
-      o(28, 58, 40, 52, '#2a4f86');
-      o(34, 64, 26, 38, '#d4e0f0');
-      o(32, 58, 4, 52, '#183055');
+      o(42, 64, 48, 68, '#2a4f86'); o(50, 72, 30, 50, '#d4e0f0'); o(46, 64, 5, 68, '#183055');
     } else if (kind === 'bathSign') {
-      o(28, 24, 8, 84, '#6a5138');
-      o(36, 32, 36, 48, '#bfa56c');
-      o(42, 42, 24, 8, '#5f3c2a');
+      o(46, 20, 10, 110, '#6a5138'); o(56, 36, 44, 58, '#bfa56c'); o(66, 48, 24, 12, '#5f3c2a');
+    } else if (kind === 'key') {
+      o(54, 74, 18, 8, '#cfb56d'); o(70, 72, 18, 12, '#cfb56d'); o(84, 74, 10, 8, '#cfb56d');
+      o(48, 66, 16, 16, 'rgba(0,0,0,0)');
+      x.strokeStyle = '#cfb56d'; x.lineWidth = 6; x.beginPath(); x.arc(56, 74, 10, 0, Math.PI*2); x.stroke();
+    } else if (kind === 'ledger') {
+      o(34, 56, 60, 80, '#6d3a30'); o(42, 66, 44, 60, '#edd9b4'); o(38, 56, 6, 80, '#3d1d17');
+    } else if (kind === 'shrine') {
+      o(30, 100, 68, 18, '#6a4827'); o(40, 54, 50, 46, '#9c2f34'); o(52, 34, 26, 20, '#d8c389');
+    } else if (kind === 'archiveDoor' || kind === 'closedDoor' || kind === 'door') {
+      const main = kind === 'closedDoor' ? '#544d68' : '#8f5f48';
+      o(38, 28, 52, 110, main); o(46, 36, 36, 94, kind === 'closedDoor' ? '#73698e' : '#b47a61'); o(78, 84, 6, 6, '#d7c287');
     }
     return c;
   }
 
-  function shadeColor(rgb, factor) {
-    return `rgb(${Math.floor(rgb[0]*factor)},${Math.floor(rgb[1]*factor)},${Math.floor(rgb[2]*factor)})`;
+  function drawHead(ctx, x, y, w, h, skin, hair, eye='dark') {
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.ellipse(x, y - 4, w * 0.54, h * 0.56, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, w * 0.42, h * 0.48, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.beginPath(); ctx.ellipse(x - w*0.14, y - h*0.05, w*0.12, h*0.09, -0.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = eye === 'red' ? '#7b2020' : '#121212';
+    ctx.fillRect(x - w*0.17, y, w*0.08, h*0.035);
+    ctx.fillRect(x + w*0.09, y, w*0.08, h*0.035);
+    ctx.fillStyle = '#80574a';
+    ctx.fillRect(x - w*0.02, y + h*0.12, w*0.04, h*0.11);
+    ctx.fillRect(x - w*0.09, y + h*0.22, w*0.18, h*0.03);
   }
+
+  function drawBody(ctx, opts, portrait=false) {
+    const { body='#445', accent='#ccb', skirt=null, sleeve='#d8cab3', face='#efdcc7', hair='#222', eye='dark', helmet=false } = opts;
+    const w = portrait ? 180 : 140;
+    const h = portrait ? 220 : 250;
+    ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
+    if (portrait) {
+      const grad = ctx.createLinearGradient(0,0,0,h);
+      grad.addColorStop(0, 'rgba(18,24,33,.95)');
+      grad.addColorStop(1, 'rgba(6,9,15,.98)');
+      ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+    }
+    ctx.save();
+    if (!portrait) ctx.translate(10, 0);
+    const cx = portrait ? 90 : 70;
+    const headY = portrait ? 62 : 44;
+    const headW = portrait ? 60 : 44;
+    const headH = portrait ? 72 : 52;
+    if (helmet) {
+      ctx.fillStyle = '#eef1f5';
+      ctx.beginPath(); ctx.ellipse(cx, headY-18, headW*0.62, headH*0.36, 0, Math.PI, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#d8dde6'; ctx.fillRect(cx - headW*0.62, headY - 18, headW*1.24, 10);
+      ctx.fillStyle = '#99a9ba'; ctx.fillRect(cx - 8, headY - 44, 16, 20);
+    }
+    drawHead(ctx, cx, headY, headW, headH, face, hair, eye);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(cx - 34, portrait ? 116 : 92);
+    ctx.lineTo(cx + 34, portrait ? 116 : 92);
+    ctx.lineTo(cx + 26, portrait ? 198 : 170);
+    ctx.lineTo(cx - 26, portrait ? 198 : 170);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = sleeve;
+    ctx.fillRect(cx - 56, portrait ? 124 : 98, 18, portrait ? 54 : 48);
+    ctx.fillRect(cx + 38, portrait ? 124 : 98, 18, portrait ? 54 : 48);
+    if (accent) { ctx.fillStyle = accent; ctx.fillRect(cx - 20, portrait ? 130 : 106, 40, portrait ? 12 : 10); }
+    if (skirt) {
+      ctx.fillStyle = skirt;
+      ctx.beginPath();
+      ctx.moveTo(cx - 28, portrait ? 172 : 146);
+      ctx.lineTo(cx + 28, portrait ? 172 : 146);
+      ctx.lineTo(cx + 22, portrait ? 216 : 204);
+      ctx.lineTo(cx - 22, portrait ? 216 : 204);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = portrait ? '#1a1c24' : '#191a1f';
+    ctx.fillRect(cx - 20, portrait ? 198 : 170, 14, portrait ? 24 : 38);
+    ctx.fillRect(cx + 6, portrait ? 198 : 170, 14, portrait ? 24 : 38);
+    if (opts.flag) {
+      ctx.fillStyle = '#d9d9d9'; ctx.fillRect(cx + 42, portrait ? 134 : 108, 6, portrait ? 68 : 66);
+      ctx.fillStyle = '#c33'; ctx.fillRect(cx + 48, portrait ? 136 : 110, portrait ? 32 : 28, portrait ? 18 : 16);
+      ctx.fillStyle = '#fff'; ctx.fillRect(cx + 48, portrait ? 154 : 126, portrait ? 32 : 28, portrait ? 18 : 16);
+    }
+    if (!portrait) {
+      ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 2; ctx.strokeRect(8, 6, ctx.canvas.width - 26, ctx.canvas.height - 12);
+    }
+    ctx.restore();
+  }
+
+  function makeCharacterSprite(kind, portrait=false) {
+    const c = document.createElement('canvas');
+    c.width = portrait ? 180 : 160;
+    c.height = portrait ? 220 : 260;
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    if (kind === 'okami') {
+      drawBody(x, { face:'#efdcc7', hair:'#2b2430', body:'#4f3042', accent:'#d1a267', sleeve:'#efdcc7', skirt:'#2d2333' }, portrait);
+    } else if (kind === 'guest') {
+      drawBody(x, { face:'#efddc9', hair:'#23262f', body:'#5f6ca0', accent:'#d9dbe8', sleeve:'#efddc9', skirt:'#4a5681' }, portrait);
+    } else if (kind === 'maid') {
+      drawBody(x, { face:'#efdcc7', hair:'#f3f3f1', body:'#335c88', accent:'#e8eef8', sleeve:'#efdcc7', skirt:'#1d3048' }, portrait);
+    } else if (kind === 'guest202') {
+      drawBody(x, { face:'#f0ddc9', hair:'#403126', body:'#6f5a45', accent:'#c9b89a', sleeve:'#f0ddc9', skirt:'#514234' }, portrait);
+    } else if (kind === 'guide') {
+      drawBody(x, { face:'#e7dccf', hair:'#4a545f', body:'#2d4b6b', accent:'#eef1f5', sleeve:'#d6d9df', skirt:'#223447', eye:'red', helmet:true, flag:true }, portrait);
+      if (portrait) {
+        x.fillStyle = 'rgba(215,100,100,.18)';
+        x.fillRect(0,0,c.width,c.height);
+      }
+    } else if (kind === 'narrator') {
+      const grad = x.createLinearGradient(0,0,0,c.height);
+      grad.addColorStop(0, 'rgba(20,28,40,.95)'); grad.addColorStop(1, 'rgba(5,8,13,.98)');
+      x.fillStyle = grad; x.fillRect(0,0,c.width,c.height);
+      x.fillStyle = '#cfaa74'; x.font = 'bold 44px sans-serif'; x.fillText('宵', 60, 110); x.fillText('宿', 60, 160);
+    }
+    return c;
+  }
+
+  function makePortrait(kind) { return makeCharacterSprite(kind, true); }
 
   function drawScene(dt) {
     const area = currentArea();
-    g.fillStyle = area.skyTop;
-    g.fillRect(0, 0, OFF_W, OFF_H / 2);
     const skyGrad = g.createLinearGradient(0, 0, 0, OFF_H / 2);
-    skyGrad.addColorStop(0, area.skyTop);
-    skyGrad.addColorStop(1, area.skyBottom);
-    g.fillStyle = skyGrad;
-    g.fillRect(0, 0, OFF_W, OFF_H / 2);
-
+    skyGrad.addColorStop(0, area.skyTop); skyGrad.addColorStop(1, area.skyBottom);
+    g.fillStyle = skyGrad; g.fillRect(0, 0, OFF_W, OFF_H / 2);
     const floorGrad = g.createLinearGradient(0, OFF_H / 2, 0, OFF_H);
-    floorGrad.addColorStop(0, area.floorA);
-    floorGrad.addColorStop(1, area.floorB);
-    g.fillStyle = floorGrad;
-    g.fillRect(0, OFF_H / 2, OFF_W, OFF_H / 2);
+    floorGrad.addColorStop(0, area.floorA); floorGrad.addColorStop(1, area.floorB);
+    g.fillStyle = floorGrad; g.fillRect(0, OFF_H / 2, OFF_W, OFF_H / 2);
 
     drawFloorPattern(area);
-
     const zBuffer = new Array(OFF_W).fill(MAX_DEPTH);
 
     for (let x = 0; x < OFF_W; x++) {
@@ -756,10 +1046,7 @@
         const rx = player.x + rayDirX * depth;
         const ry = player.y + rayDirY * depth;
         const t = tileAt(rx, ry);
-        if (t !== '.') {
-          hit = { tile:t, x:rx, y:ry };
-          break;
-        }
+        if (t !== '.') { hit = { tile:t, x:rx, y:ry }; break; }
         depth += 0.02;
       }
       if (!hit) continue;
@@ -772,7 +1059,7 @@
       const fy = hit.y - Math.floor(hit.y);
       const texX = Math.floor(((fx > fy ? fx : fy) % 1) * tex.width);
       g.drawImage(tex, texX, 0, 1, tex.height, x, y0, 1, wallH);
-      const shade = Math.min(.78, corrected / 18 + (state.phase === 'night' ? .12 : 0));
+      const shade = Math.min(.78, corrected / 18 + (state.phase === 'night' ? .10 : 0));
       g.fillStyle = `rgba(0,0,0,${shade})`;
       g.fillRect(x, y0, 1, wallH);
     }
@@ -780,6 +1067,7 @@
     drawSprites(zBuffer);
     drawAreaSigns(zBuffer);
     if (state.phase === 'night') drawNightEffects(dt);
+    if (state.chaseActive) drawChaseWarning();
   }
 
   function drawFloorPattern(area) {
@@ -787,10 +1075,8 @@
       g.fillStyle = y % 8 === 0 ? area.floorA : area.floorB;
       g.fillRect(0, y, OFF_W, 1);
     }
-    if (player.area === 'lobby' || player.area === 'hall' || player.area === 'room201') {
-      g.fillStyle = 'rgba(0,0,0,.08)';
-      for (let x = 0; x < OFF_W; x += 18) g.fillRect(x, OFF_H/2, 2, OFF_H/2);
-    }
+    g.fillStyle = 'rgba(0,0,0,.08)';
+    for (let x = 0; x < OFF_W; x += 18) g.fillRect(x, OFF_H/2, 2, OFF_H/2);
   }
 
   function project(wx, wy) {
@@ -806,12 +1092,12 @@
   }
 
   function drawSpriteCanvas(proj, spriteCanvas, scaleFactor = 1) {
-    const h = Math.min(OFF_H * 1.6, (OFF_H / Math.max(0.08, proj.corrected)) * scaleFactor);
+    const h = Math.min(OFF_H * 1.85, (OFF_H / Math.max(0.08, proj.corrected)) * scaleFactor);
     const w = h * (spriteCanvas.width / spriteCanvas.height);
     const x = proj.screenX - w / 2;
-    const y = OFF_H / 2 - h * 0.55;
+    const y = OFF_H / 2 - h * 0.60;
     g.drawImage(spriteCanvas, x, y, w, h);
-    const darkness = Math.min(.72, proj.corrected / 16 + (state.phase === 'night' ? .08 : 0));
+    const darkness = Math.min(.74, proj.corrected / 16 + (state.phase === 'night' ? .08 : 0));
     g.fillStyle = `rgba(0,0,0,${darkness})`;
     g.fillRect(x, y, w, h);
   }
@@ -827,18 +1113,18 @@
     projected.sort((a, b) => b.proj.corrected - a.proj.corrected);
     for (const s of projected) {
       const spriteCanvas = spriteCanvases[s.kind];
-      const h = Math.min(OFF_H * 1.6, (OFF_H / Math.max(0.08, s.proj.corrected)) * (s.kind === 'ghost' ? 1.18 : 1.05));
+      const scale = s.kind === 'guide' ? 1.32 : s.type === 'item' ? 0.95 : 1.18;
+      const h = Math.min(OFF_H * 1.8, (OFF_H / Math.max(0.08, s.proj.corrected)) * scale);
       const w = h * (spriteCanvas.width / spriteCanvas.height);
       const x = Math.floor(s.proj.screenX - w / 2);
-      const y = Math.floor(OFF_H / 2 - h * 0.55);
       let visible = false;
       const x0 = Math.max(0, x);
       const x1 = Math.min(OFF_W - 1, Math.floor(x + w));
       for (let sx = x0; sx <= x1; sx++) {
-        if (s.proj.corrected < zBuffer[sx] + 0.1) { visible = true; break; }
+        if (s.proj.corrected < zBuffer[sx] + 0.12) { visible = true; break; }
       }
       if (!visible) continue;
-      drawSpriteCanvas(s.proj, spriteCanvas, s.kind === 'ghost' ? 1.18 : 1.05);
+      drawSpriteCanvas(s.proj, spriteCanvas, scale);
     }
   }
 
@@ -847,36 +1133,41 @@
     for (const sign of signs) {
       const proj = project(sign.x, sign.y);
       if (!proj) continue;
-      const h = Math.min(42, (OFF_H / Math.max(0.1, proj.corrected)) * 0.3);
-      const w = sign.text.length * 8 + 16;
+      const h = Math.min(44, (OFF_H / Math.max(0.1, proj.corrected)) * 0.3);
+      const w = sign.text.length * 8 + 18;
       const x = proj.screenX - w / 2;
       const y = OFF_H / 2 - h - 4;
       if (proj.corrected > zBuffer[Math.max(0, Math.min(OFF_W - 1, Math.floor(proj.screenX)))] + .2) continue;
-      g.fillStyle = 'rgba(10,8,8,.85)';
-      g.fillRect(x, y, w, h);
-      g.strokeStyle = '#d5bc87';
-      g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-      g.fillStyle = '#f5efe5';
-      g.font = '12px sans-serif';
-      g.textAlign = 'center';
-      g.fillText(sign.text, x + w / 2, y + h / 2 + 4);
+      g.fillStyle = 'rgba(10,8,8,.85)'; g.fillRect(x, y, w, h);
+      g.strokeStyle = '#d5bc87'; g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      g.fillStyle = '#f5efe5'; g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillText(sign.text, x + w / 2, y + h / 2 + 4);
     }
   }
 
   function drawNightEffects(dt) {
-    g.fillStyle = 'rgba(6, 12, 20, 0.24)';
-    g.fillRect(0, 0, OFF_W, OFF_H);
+    g.fillStyle = 'rgba(6, 12, 20, 0.24)'; g.fillRect(0, 0, OFF_W, OFF_H);
     g.fillStyle = 'rgba(255,255,255,0.03)';
+    const now = performance.now();
     for (let i = 0; i < 22; i++) {
-      const x = ((i * 37 + performance.now() * 0.03) % OFF_W) | 0;
-      const y = ((i * 17 + performance.now() * 0.02) % OFF_H) | 0;
+      const x = ((i * 37 + now * 0.03) % OFF_W) | 0;
+      const y = ((i * 17 + now * 0.02) % OFF_H) | 0;
       g.fillRect(x, y, 1, 1);
     }
-    if (state.step >= 6) {
-      const flick = (Math.sin(performance.now() * 0.013) * 0.5 + 0.5) * 0.18;
+    if (state.step >= 8) {
+      const flick = (Math.sin(now * 0.013) * 0.5 + 0.5) * 0.18;
       g.fillStyle = `rgba(255,255,255,${flick})`;
       g.fillRect(0, 0, OFF_W, 3);
     }
+  }
+
+  function drawChaseWarning() {
+    const flash = (Math.sin(performance.now() * 0.024) * 0.5 + 0.5) * 0.18;
+    g.fillStyle = `rgba(180,20,20,${flash})`;
+    g.fillRect(0, 0, OFF_W, OFF_H);
+    g.fillStyle = 'rgba(255,255,255,.76)';
+    g.font = 'bold 16px sans-serif';
+    g.textAlign = 'center';
+    g.fillText('誘導員が追ってくる', OFF_W / 2, 26);
   }
 
   function drawFrame(dt) {
@@ -889,6 +1180,29 @@
     }
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+  }
+
+  function updateGuide(dt) {
+    if (!state.chaseActive || state.inDialogue || state.ending || state.menuOpen) return;
+    if (!guide.active || guide.area !== player.area) return;
+    const dx = player.x - guide.x;
+    const dy = player.y - guide.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.58) {
+      endGame('誘導員に捕まった', '青いノートを持ったまま順番から外れたあなたを、白ヘルメットの誘導員が静かに回収した。v15では、宿帳庫から帳場までの逃走がゲームオーバー条件付きで入っています。');
+      return;
+    }
+    const move = guide.speed * dt;
+    const nx = guide.x + (dx / Math.max(0.001, d)) * move;
+    const ny = guide.y + (dy / Math.max(0.001, d)) * move;
+    const map = areas[guide.area].map;
+    const solidAt = (x, y) => {
+      const mx = Math.floor(x), my = Math.floor(y);
+      if (mx < 0 || my < 0 || my >= map.length || mx >= map[0].length) return true;
+      return map[my][mx] !== '.';
+    };
+    if (!solidAt(nx, guide.y)) guide.x = nx;
+    if (!solidAt(guide.x, ny)) guide.y = ny;
   }
 
   function update(dt) {
@@ -905,6 +1219,8 @@
       tryMove(player.x + vx, player.y + vy);
     }
 
+    updateGuide(dt);
+
     const n = (!state.inDialogue && !state.ending) ? getNearbyInteraction() : null;
     state.nearby = n;
     if (n && n.prompt) {
@@ -912,6 +1228,13 @@
       promptBox.classList.remove('hidden');
     } else {
       promptBox.classList.add('hidden');
+    }
+
+    if (state.lastStatusTimer > 0) {
+      state.lastStatusTimer = Math.max(0, state.lastStatusTimer - dt);
+      statusBox.style.opacity = String(Math.min(1, state.lastStatusTimer * 1.4));
+    } else {
+      statusBox.style.opacity = '0.35';
     }
 
     drawMiniMap();
@@ -965,7 +1288,6 @@
       moveInput.y = 0;
     };
     center();
-
     const updatePad = (clientX, clientY) => {
       const rect = movePad.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
@@ -982,7 +1304,6 @@
       moveInput.x = ox / max;
       moveInput.y = oy / max;
     };
-
     movePad.addEventListener('pointerdown', (e) => {
       moveInput.active = true;
       moveInput.pointerId = e.pointerId;
@@ -999,9 +1320,7 @@
       }
     });
     window.addEventListener('pointercancel', () => {
-      moveInput.active = false;
-      moveInput.pointerId = null;
-      center();
+      moveInput.active = false; moveInput.pointerId = null; center();
     });
   }
 
@@ -1038,6 +1357,7 @@
 
   resize();
   applyHudState();
+  updatePortrait('narrator');
   if (window.__YOINADO_CONTINUE__) {
     if (!loadGame()) startNew();
   } else {
