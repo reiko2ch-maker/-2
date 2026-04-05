@@ -13,6 +13,8 @@
   const dialogueText = document.getElementById('dialogueText');
   const speakerLabel = document.getElementById('speakerLabel');
   const phaseLabel = document.getElementById('phaseLabel');
+  const areaLabel = document.getElementById('areaLabel');
+  const dayLabel = document.getElementById('dayLabel');
   const endingScreen = document.getElementById('endingScreen');
   const endingTitle = document.getElementById('endingTitle');
   const endingText = document.getElementById('endingText');
@@ -22,85 +24,154 @@
   const saveBtn = document.getElementById('saveBtn');
   const loadBtn = document.getElementById('loadBtn');
 
-  const STORAGE_KEY = 'yoinado_v12_save';
-  const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-
-  const OFF_W = 256;
-  const OFF_H = 160;
+  const STORAGE_KEY = 'yoinado_v13_save';
+  const OFF_W = 320;
+  const OFF_H = 200;
+  const FOV = Math.PI / 3.2;
+  const MAX_DEPTH = 22;
   const off = document.createElement('canvas');
   off.width = OFF_W;
   off.height = OFF_H;
   const g = off.getContext('2d', { alpha: false });
   g.imageSmoothingEnabled = false;
 
-  const FOV = Math.PI / 3.1;
-  const MAX_DEPTH = 26;
-  const AMBIENT_DAY = 1.0;
-  const AMBIENT_NIGHT = 0.58;
-
-  const map = [
-    '#######################',
-    '#.....................#',
-    '#.....................#',
-    '#....SSSSSSSSSSSSS....#',
-    '#....S...........S....#',
-    '#....S...........S....#',
-    '#....S...........S....#',
-    '#....S...........S....#',
-    '#....S...........S....#',
-    '#....SSSSSSSSSSSSS....#',
-    '#.....................#',
-    '#.....................#',
-    '#.....................#',
-    '#.....................#',
-    '#######################'
-  ];
-  const MAP_W = map[0].length;
-  const MAP_H = map.length;
-
-  const player = { x: 2.4, y: 12.8, a: -0.05, radius: 0.18, speed: 2.15 };
-  const keys = { w: false, a: false, s: false, d: false };
-  const moveInput = { active: false, x: 0, y: 0, pointerId: null };
-  const lookInput = { active: false, lastX: 0, pointerId: null, dx: 0 };
+  const player = { x: 2.5, y: 9.6, a: -0.03, radius: 0.18, speed: 2.1, area: 'lobby' };
+  const keys = { w:false, a:false, s:false, d:false };
+  const moveInput = { active:false, x:0, y:0, pointerId:null };
+  const lookInput = { active:false, lastX:0, pointerId:null, dx:0 };
 
   const state = {
     phase: 'day',
+    day: 1,
     objective: '女将に話しかける',
     inDialogue: false,
     dialogueQueue: [],
     dialogueOnEnd: null,
     nearby: null,
     ending: false,
-    flicker: 0,
     pulse: 0,
+    areaFlash: 0,
   };
 
   const tasks = {
     talkedToOkami: false,
-    gotKey: false,
-    deliveredKey: false,
-    answeredPhone: false,
+    gotTray: false,
+    servedTea: false,
+    heardRumor: false,
+    readLedger: false,
     startedNight: false,
-    checkedRoom: false,
-    foundLedger: false,
-    sawFlagman: false,
+    talkedWorker: false,
+    checked203: false,
   };
+
+  const areas = {
+    lobby: {
+      name: '帳場',
+      skyTop: '#1b1a26', skyBottom: '#6b5137',
+      floorA: '#6d593f', floorB: '#5b4934', ceilA: '#2a2430', ceilB: '#19151e',
+      map: [
+        '####################',
+        '#......WWWWWW......#',
+        '#......W....W......#',
+        '#......W....W......#',
+        '#......W....W......#',
+        '#......W....W......#',
+        '#......WWWWWW......#',
+        '#..................#',
+        '#..................#',
+        '#..................#',
+        '#..................#',
+        '####################'
+      ],
+      spawns: {
+        start: { x: 2.5, y: 9.6, a: -0.03 },
+        fromHall: { x: 16.6, y: 9.1, a: Math.PI },
+      },
+    },
+    hall: {
+      name: '客室廊下',
+      skyTop: '#10161f', skyBottom: '#4d3827',
+      floorA: '#6a533a', floorB: '#5c4732', ceilA: '#21202b', ceilB: '#17141d',
+      map: [
+        '########################',
+        '#......................#',
+        '#......................#',
+        '#......................#',
+        '#....DD....DD....DD....#',
+        '#......................#',
+        '#......................#',
+        '#......................#',
+        '#....SSSSSSSSSSSS......#',
+        '#......................#',
+        '#......................#',
+        '########################'
+      ],
+      spawns: {
+        fromLobby: { x: 2.2, y: 9.2, a: 0 },
+        fromRoom: { x: 18.6, y: 5.6, a: Math.PI },
+        fromNorth: { x: 11.5, y: 2.2, a: Math.PI / 2 },
+      },
+    },
+    room201: {
+      name: '201号室',
+      skyTop: '#15141d', skyBottom: '#614431',
+      floorA: '#7a6b4e', floorB: '#665a43', ceilA: '#241e25', ceilB: '#19161b',
+      map: [
+        '############',
+        '#....SS....#',
+        '#..........#',
+        '#..........#',
+        '#..........#',
+        '#..........#',
+        '#..........#',
+        '#..........#',
+        '#..........#',
+        '############'
+      ],
+      spawns: {
+        door: { x: 2.1, y: 5.4, a: 0 },
+      },
+    },
+    north: {
+      name: '北の裏廊下',
+      skyTop: '#091116', skyBottom: '#20363f',
+      floorA: '#4d524f', floorB: '#3d4341', ceilA: '#171b21', ceilB: '#0d1016',
+      map: [
+        '####################',
+        '#..................#',
+        '#..SSSSSS..SSSS....#',
+        '#..................#',
+        '#..................#',
+        '#..........DD......#',
+        '#..................#',
+        '#..................#',
+        '#..................#',
+        '####################'
+      ],
+      spawns: {
+        entry: { x: 2.2, y: 7.5, a: 0 },
+      },
+    }
+  };
+
+  function currentArea() { return areas[player.area]; }
+  function currentMap() { return currentArea().map; }
+  function mapW() { return currentMap()[0].length; }
+  function mapH() { return currentMap().length; }
 
   function setStatus(text) { statusBox.textContent = text; }
   function setObjective(text) { state.objective = text; }
 
   function tileAt(x, y) {
     const mx = Math.floor(x), my = Math.floor(y);
-    if (mx < 0 || my < 0 || mx >= MAP_W || my >= MAP_H) return '#';
+    const map = currentMap();
+    if (mx < 0 || my < 0 || mx >= map[0].length || my >= map.length) return '#';
     return map[my][mx];
   }
 
-  function isSolidTile(tile) {
-    return tile === '#' || tile === 'S';
-  }
-
   function isWall(x, y) {
-    return isSolidTile(tileAt(x, y));
+    const t = tileAt(x, y);
+    return t !== '.';
   }
 
   function moveAndCollide(nx, ny) {
@@ -142,16 +213,17 @@
 
   function getSaveData() {
     return {
-      player,
-      tasks,
+      player: { x: player.x, y: player.y, a: player.a, area: player.area },
+      tasks: { ...tasks },
       phase: state.phase,
+      day: state.day,
       objective: state.objective,
     };
   }
 
   function saveGame() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(getSaveData()));
-    setStatus('保存した / v12');
+    setStatus('保存した / v13');
   }
 
   function loadGame() {
@@ -162,13 +234,16 @@
       Object.assign(player, data.player || {});
       Object.assign(tasks, data.tasks || {});
       state.phase = data.phase || 'day';
-      phaseLabel.textContent = state.phase === 'night' ? '深夜見回り' : '昼勤務';
+      state.day = data.day || 1;
+      dayLabel.textContent = 'DAY ' + state.day;
+      phaseLabel.textContent = state.phase === 'night' ? '深夜調査' : '昼勤務';
+      areaLabel.textContent = currentArea().name;
       state.ending = false;
       state.inDialogue = false;
       dialogueBox.classList.add('hidden');
       endingScreen.classList.add('hidden');
       setObjective(data.objective || '続きから再開');
-      setStatus('ロードした / v12');
+      setStatus('ロードした / v13');
       return true;
     } catch (e) {
       setStatus('ロード失敗');
@@ -176,26 +251,101 @@
     }
   }
 
+  function changeArea(areaId, spawnKey) {
+    const area = areas[areaId];
+    if (!area) return;
+    player.area = areaId;
+    const sp = area.spawns[spawnKey] || Object.values(area.spawns)[0];
+    player.x = sp.x; player.y = sp.y; player.a = sp.a;
+    areaLabel.textContent = area.name;
+    state.areaFlash = 1.0;
+    setStatus('エリア移動: ' + area.name);
+  }
+
   function startNew() {
-    player.x = 2.4;
-    player.y = 12.8;
-    player.a = -0.05;
+    player.area = 'lobby';
+    changeArea('lobby', 'start');
     Object.keys(tasks).forEach(k => tasks[k] = false);
     state.phase = 'day';
-    state.inDialogue = false;
-    state.dialogueQueue = [];
-    state.dialogueOnEnd = null;
-    state.nearby = null;
+    state.day = 1;
     state.ending = false;
+    state.inDialogue = false;
+    dayLabel.textContent = 'DAY 1';
     phaseLabel.textContent = '昼勤務';
     endingScreen.classList.add('hidden');
     dialogueBox.classList.add('hidden');
     setObjective('女将に話しかける');
-    setStatus('起動完了 / v12');
+    setStatus('起動完了 / v13');
     showDialogue([
-      ['記録', '見取り図つきで、昼の勤務が始まる。'],
-      ['記録', '左下が帳場。右下が201号室。まずは女将に話しかけよう。']
+      ['記録', '今日は住み込み初日。まずは帳場で女将の指示を受ける。'],
+      ['記録', '昼は仕事、夜は調査。客の話が、そのまま事件の入口になる。']
     ]);
+  }
+
+  function outlineRect(x, y, w, h, fill, stroke = '#111') { return { x, y, w, h, fill, stroke }; }
+  function drawShapes(ctx2, shapes) {
+    for (const s of shapes) {
+      ctx2.fillStyle = s.stroke; ctx2.fillRect(s.x - 1, s.y - 1, s.w + 2, s.h + 2);
+      ctx2.fillStyle = s.fill; ctx2.fillRect(s.x, s.y, s.w, s.h);
+    }
+  }
+
+  function makeSprite(kind) {
+    const c = document.createElement('canvas');
+    c.width = 88; c.height = 132;
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    x.clearRect(0, 0, 88, 132);
+    if (kind === 'okami') {
+      drawShapes(x, [
+        outlineRect(28, 10, 32, 18, '#2b2430'), outlineRect(31, 22, 26, 18, '#f1e3d0'),
+        outlineRect(22, 40, 44, 46, '#5b3445'), outlineRect(16, 46, 12, 22, '#f1e3d0'),
+        outlineRect(60, 46, 12, 22, '#f1e3d0'), outlineRect(30, 54, 28, 10, '#d1a267'),
+        outlineRect(26, 86, 14, 24, '#2d2432'), outlineRect(48, 86, 14, 24, '#2d2432')
+      ]);
+    } else if (kind === 'guest') {
+      drawShapes(x, [
+        outlineRect(28, 10, 32, 18, '#2a2733'), outlineRect(32, 22, 24, 16, '#f0e0cb'),
+        outlineRect(24, 40, 40, 42, '#7c67b3'), outlineRect(18, 44, 10, 20, '#f0e0cb'),
+        outlineRect(60, 44, 10, 20, '#f0e0cb'), outlineRect(30, 82, 14, 24, '#5d4a9c'),
+        outlineRect(48, 82, 14, 24, '#5d4a9c'), outlineRect(26, 28, 36, 6, '#111')
+      ]);
+    } else if (kind === 'worker') {
+      drawShapes(x, [
+        outlineRect(26, 8, 36, 14, '#f5f5f5'), outlineRect(32, 20, 24, 8, '#dcdcdc'),
+        outlineRect(33, 28, 22, 18, '#f3dfc7'), outlineRect(24, 46, 40, 44, '#2150a0'),
+        outlineRect(18, 50, 10, 24, '#18335c'), outlineRect(60, 50, 10, 24, '#18335c'),
+        outlineRect(57, 50, 14, 8, '#79d6b5'), outlineRect(28, 90, 14, 24, '#132440'),
+        outlineRect(48, 90, 14, 24, '#132440'), outlineRect(12, 48, 18, 12, '#f2f2f2'),
+        outlineRect(58, 44, 18, 14, '#cb4141'), outlineRect(28, 42, 2, 30, '#7a5b41'),
+        outlineRect(58, 40, 2, 32, '#7a5b41')
+      ]);
+    } else if (kind === 'tray') {
+      drawShapes(x, [outlineRect(24, 58, 40, 10, '#5d3d28'), outlineRect(28, 52, 12, 8, '#7bd0bd'), outlineRect(48, 52, 10, 8, '#f0e0cb')]);
+    } else if (kind === 'ledger') {
+      drawShapes(x, [outlineRect(24, 34, 40, 56, '#ece2d0'), outlineRect(24, 34, 10, 56, '#9f3b3b')]);
+      x.fillStyle = '#7a664f'; x.fillRect(38, 48, 16, 3); x.fillRect(38, 58, 16, 3); x.fillRect(38, 68, 12, 3);
+    } else if (kind === 'door201') {
+      drawShapes(x, [outlineRect(18, 16, 52, 80, '#9d7a56'), outlineRect(24, 22, 40, 68, '#d1c3ad'), outlineRect(56, 54, 4, 4, '#d0b35b')]);
+      x.fillStyle = '#281f18'; x.font = 'bold 18px sans-serif'; x.textAlign = 'center'; x.fillText('201', 44, 48);
+    } else if (kind === 'northDoor') {
+      drawShapes(x, [outlineRect(18, 16, 52, 80, '#56646b'), outlineRect(24, 22, 40, 68, '#93a1a7')]);
+      x.fillStyle = '#12181d'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.fillText('北', 44, 48); x.fillText('裏廊下', 44, 70);
+    } else if (kind === 'hallDoor') {
+      drawShapes(x, [outlineRect(18, 16, 52, 80, '#9e7a57'), outlineRect(24, 22, 40, 68, '#d1c1a6')]);
+      x.fillStyle = '#281f18'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.fillText('客室', 44, 48); x.fillText('廊下', 44, 70);
+    } else if (kind === 'lantern') {
+      drawShapes(x, [outlineRect(30, 8, 4, 12, '#7a5d38'), outlineRect(18, 20, 36, 42, '#f0c873'), outlineRect(16, 18, 40, 4, '#9b452c'), outlineRect(16, 62, 40, 4, '#9b452c')]);
+      x.fillStyle = 'rgba(255,245,210,0.85)'; x.fillRect(28, 28, 16, 16);
+    } else if (kind === 'signLobby') {
+      drawShapes(x, [outlineRect(16, 24, 56, 32, '#d8ccb6'), outlineRect(42, 56, 4, 24, '#6c5137')]);
+      x.fillStyle = '#2b231c'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.fillText('帳場', 44, 46);
+    } else if (kind === 'sign203') {
+      drawShapes(x, [outlineRect(18, 16, 52, 80, '#7f6950'), outlineRect(24, 22, 40, 68, '#a58c70')]);
+      x.fillStyle = '#1e1814'; x.font = 'bold 18px sans-serif'; x.textAlign = 'center'; x.fillText('203', 44, 48);
+      x.fillStyle = '#b73d3d'; x.fillRect(24, 24, 40, 4);
+    }
+    return c;
   }
 
   function makeTexture(kind) {
@@ -204,290 +354,220 @@
     const x = c.getContext('2d');
     x.imageSmoothingEnabled = false;
     if (kind === 'wood') {
-      x.fillStyle = '#4a3222'; x.fillRect(0, 0, 32, 32);
+      x.fillStyle = '#563922'; x.fillRect(0, 0, 32, 32);
       for (let i = 0; i < 32; i += 8) {
-        x.fillStyle = i % 16 === 0 ? '#6d4b31' : '#5a3d29';
-        x.fillRect(i, 0, 6, 32);
+        x.fillStyle = i % 16 === 0 ? '#7f5635' : '#69462d'; x.fillRect(i, 0, 6, 32);
       }
-      x.fillStyle = 'rgba(30,18,10,0.5)';
-      for (let i = 0; i < 32; i += 4) x.fillRect(i, 0, 1, 32);
+      x.fillStyle = 'rgba(34,20,12,0.45)'; for (let i = 0; i < 32; i += 4) x.fillRect(i, 0, 1, 32);
     } else if (kind === 'shoji') {
-      x.fillStyle = '#d5cab4'; x.fillRect(0, 0, 32, 32);
-      x.fillStyle = '#7c6041';
-      for (let i = 0; i < 32; i += 8) {
-        x.fillRect(i, 0, 1, 32);
-        x.fillRect(0, i, 32, 1);
-      }
-      x.fillStyle = 'rgba(255,234,180,0.10)';
-      x.fillRect(0, 0, 32, 32);
+      x.fillStyle = '#d8ccb5'; x.fillRect(0, 0, 32, 32);
+      x.fillStyle = '#826646';
+      for (let i = 0; i < 32; i += 8) { x.fillRect(i, 0, 1, 32); x.fillRect(0, i, 32, 1); }
+      x.fillStyle = 'rgba(255,240,210,0.14)'; x.fillRect(0, 0, 32, 32);
+    } else if (kind === 'door') {
+      x.fillStyle = '#9f7a56'; x.fillRect(0, 0, 32, 32); x.fillStyle = '#ccbea6'; x.fillRect(4, 4, 24, 24);
+      x.fillStyle = '#715637'; x.fillRect(15, 4, 2, 24); x.fillStyle = '#d3b55e'; x.fillRect(24, 15, 3, 3);
     } else {
-      x.fillStyle = '#1d1713'; x.fillRect(0, 0, 32, 32);
+      x.fillStyle = '#4b565d'; x.fillRect(0, 0, 32, 32); x.fillStyle = '#7f8e95'; x.fillRect(4, 4, 24, 24);
+      x.fillStyle = '#324047'; x.fillRect(0, 14, 32, 4);
     }
     return x.getImageData(0, 0, 32, 32).data;
   }
 
   const textures = {
-    wood: makeTexture('wood'),
-    shoji: makeTexture('shoji'),
-    dark: makeTexture('dark'),
+    '#': makeTexture('wood'),
+    'W': makeTexture('wood'),
+    'S': makeTexture('shoji'),
+    'D': makeTexture('door'),
   };
 
-  function sampleTexture(tex, u, v, brightness) {
-    const tx = (((u % 1) + 1) % 1 * 31) | 0;
-    const ty = (((v % 1) + 1) % 1 * 31) | 0;
-    const idx = (ty * 32 + tx) * 4;
-    return [
-      Math.min(255, tex[idx] * brightness),
-      Math.min(255, tex[idx + 1] * brightness),
-      Math.min(255, tex[idx + 2] * brightness),
-    ];
-  }
-
-  function outlineRect(x, y, w, h, fill, stroke = '#111') {
-    return { x, y, w, h, fill, stroke };
-  }
-
-  function drawShapes(ctx2, shapes) {
-    for (const s of shapes) {
-      ctx2.fillStyle = s.stroke;
-      ctx2.fillRect(s.x - 1, s.y - 1, s.w + 2, s.h + 2);
-      ctx2.fillStyle = s.fill;
-      ctx2.fillRect(s.x, s.y, s.w, s.h);
-    }
-  }
-
-  function makeSprite(kind) {
-    const c = document.createElement('canvas');
-    c.width = 72; c.height = 108;
-    const x = c.getContext('2d');
-    x.imageSmoothingEnabled = false;
-    x.clearRect(0, 0, 72, 108);
-
-    if (kind === 'okami') {
-      drawShapes(x, [
-        outlineRect(22, 8, 28, 18, '#14121c'),
-        outlineRect(24, 18, 24, 18, '#f0e2cd'),
-        outlineRect(18, 36, 36, 34, '#4e2c3c'),
-        outlineRect(14, 42, 44, 16, '#b15f67'),
-        outlineRect(28, 46, 16, 8, '#d8b66e'),
-        outlineRect(14, 40, 8, 18, '#f0e2cd'),
-        outlineRect(50, 40, 8, 18, '#f0e2cd'),
-        outlineRect(22, 70, 10, 18, '#2c2230'),
-        outlineRect(40, 70, 10, 18, '#2c2230'),
-      ]);
-    } else if (kind === 'guest') {
-      drawShapes(x, [
-        outlineRect(20, 14, 32, 18, '#2a2330'),
-        outlineRect(24, 22, 24, 18, '#f0e2cd'),
-        outlineRect(18, 40, 36, 28, '#6856a9'),
-        outlineRect(12, 44, 10, 18, '#f0e2cd'),
-        outlineRect(50, 44, 10, 18, '#f0e2cd'),
-        outlineRect(22, 68, 12, 18, '#513e87'),
-        outlineRect(38, 68, 12, 18, '#513e87'),
-        outlineRect(18, 28, 36, 6, '#111'),
-      ]);
-    } else if (kind === 'flagman') {
-      drawShapes(x, [
-        outlineRect(18, 8, 36, 14, '#ffffff'),
-        outlineRect(24, 20, 24, 8, '#dbdbdb'),
-        outlineRect(26, 28, 20, 18, '#f3dfc7'),
-        outlineRect(18, 46, 36, 26, '#214e9d'),
-        outlineRect(10, 48, 10, 22, '#1b2f5d'),
-        outlineRect(52, 48, 10, 22, '#1b2f5d'),
-        outlineRect(49, 50, 13, 8, '#79d6b5'),
-        outlineRect(18, 72, 12, 20, '#12223f'),
-        outlineRect(42, 72, 12, 20, '#12223f'),
-        outlineRect(4, 44, 18, 10, '#f4f4f4'),
-        outlineRect(50, 40, 18, 14, '#c83f3f'),
-        outlineRect(20, 40, 2, 26, '#7a5b41'),
-        outlineRect(50, 38, 2, 28, '#7a5b41'),
-      ]);
-    } else if (kind === 'key') {
-      drawShapes(x, [
-        outlineRect(20, 40, 14, 14, '#e7d59e'),
-        outlineRect(28, 44, 22, 6, '#d1b560'),
-        outlineRect(44, 40, 6, 18, '#c6a550'),
-      ]);
-      x.clearRect(24, 44, 6, 6);
-    } else if (kind === 'phone') {
-      drawShapes(x, [
-        outlineRect(18, 46, 36, 14, '#1d1d1f'),
-        outlineRect(24, 36, 24, 10, '#2e2e31'),
-        outlineRect(26, 28, 20, 8, '#d6d6d8'),
-      ]);
-    } else if (kind === 'ledger') {
-      drawShapes(x, [
-        outlineRect(20, 28, 32, 42, '#ece3d3'),
-        outlineRect(20, 28, 8, 42, '#a33d3d'),
-      ]);
-      x.fillStyle = '#7f6a52';
-      x.fillRect(30, 38, 16, 2);
-      x.fillRect(30, 46, 16, 2);
-      x.fillRect(30, 54, 12, 2);
-    } else if (kind === 'lantern') {
-      drawShapes(x, [
-        outlineRect(26, 8, 4, 10, '#7a5d38'),
-        outlineRect(16, 18, 40, 36, '#f3c86d'),
-        outlineRect(14, 16, 44, 4, '#9b452c'),
-        outlineRect(14, 54, 44, 4, '#9b452c'),
-      ]);
-      x.fillStyle = 'rgba(255,240,190,0.9)';
-      x.fillRect(28, 26, 16, 14);
-    } else if (kind === 'sign201') {
-      drawShapes(x, [outlineRect(12, 24, 48, 30, '#d8ccb6'), outlineRect(34, 54, 4, 26, '#6c5137')]);
-      x.fillStyle = '#2b231c'; x.font = 'bold 18px sans-serif'; x.textAlign = 'center'; x.fillText('201', 36, 45);
-    } else if (kind === 'signFront') {
-      drawShapes(x, [outlineRect(10, 24, 52, 30, '#d8ccb6'), outlineRect(34, 54, 4, 26, '#6c5137')]);
-      x.fillStyle = '#2b231c'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.fillText('帳場', 36, 45);
-    } else if (kind === 'signNorth') {
-      drawShapes(x, [outlineRect(12, 24, 48, 30, '#d8ccb6'), outlineRect(34, 54, 4, 26, '#6c5137')]);
-      x.fillStyle = '#2b231c'; x.font = 'bold 15px sans-serif'; x.textAlign = 'center'; x.fillText('北廊下', 36, 44);
-    }
-    return c;
-  }
-
-  const spriteSheets = {
-    okami: makeSprite('okami'),
-    guest: makeSprite('guest'),
-    flagman: makeSprite('flagman'),
-    key: makeSprite('key'),
-    phone: makeSprite('phone'),
-    ledger: makeSprite('ledger'),
-    lantern: makeSprite('lantern'),
-    sign201: makeSprite('sign201'),
-    signFront: makeSprite('signFront'),
-    signNorth: makeSprite('signNorth'),
+  const sprites = {
+    okami: makeSprite('okami'), guest: makeSprite('guest'), worker: makeSprite('worker'),
+    tray: makeSprite('tray'), ledger: makeSprite('ledger'), door201: makeSprite('door201'), northDoor: makeSprite('northDoor'),
+    hallDoor: makeSprite('hallDoor'), lantern: makeSprite('lantern'), signLobby: makeSprite('signLobby'), sign203: makeSprite('sign203')
   };
 
-  function currentObjectiveTargetId() {
-    if (!tasks.talkedToOkami) return 'okami';
-    if (!tasks.gotKey) return 'key';
-    if (!tasks.deliveredKey) return 'guest';
-    if (!tasks.answeredPhone) return 'phone';
-    if (!tasks.startedNight) return 'nightDoor';
-    if (!tasks.checkedRoom) return 'roomCheck';
-    if (!tasks.foundLedger) return 'ledger';
-    if (!tasks.sawFlagman) return 'flagman';
-    return null;
-  }
+  const decor = [
+    { area:'lobby', id:'lobbySign', x:1.6, y:8.9, r:.6, sprite:'signLobby' },
+    { area:'lobby', id:'lan1', x:9.7, y:1.8, r:.65, sprite:'lantern' },
+    { area:'lobby', id:'lan2', x:12.3, y:1.8, r:.65, sprite:'lantern' },
+    { area:'hall', id:'lanh1', x:6.0, y:3.0, r:.6, sprite:'lantern' },
+    { area:'hall', id:'lanh2', x:12.0, y:3.0, r:.6, sprite:'lantern' },
+    { area:'hall', id:'lanh3', x:18.0, y:3.0, r:.6, sprite:'lantern' },
+    { area:'north', id:'lanN1', x:5.4, y:2.1, r:.6, sprite:'lantern' },
+    { area:'north', id:'lanN2', x:13.4, y:2.1, r:.6, sprite:'lantern' },
+  ];
 
   const interactives = [
     {
-      id: 'okami', x: 3.2, y: 12.3, r: 0.8, label: '女将', sprite: 'okami', phase: 'day',
-      visible: () => true,
-      onInteract() {
+      id:'okami', area:'lobby', x:4.2, y:8.8, r:.85, sprite:'okami', label:'女将', phase:'day',
+      visible:()=>true,
+      onInteract(){
         if (!tasks.talkedToOkami) {
           tasks.talkedToOkami = true;
-          setObjective('鍵掛けから201号室の鍵を取る');
+          setObjective('配膳盆を取って201号室へ向かう');
           showDialogue([
-            ['女将', 'ようこそ。今日は客が少ないから、まずは201の鍵を持っていって。'],
-            ['女将', '見取り図の右下にいる客だよ。迷ったら右上の案内図を見な。']
+            ['女将', 'まずは201号室へお茶を持っていって。今日の仕事はそこから。'],
+            ['女将', '客室廊下は右の戸の先。終わったら帳場に戻っておいで。']
+          ]);
+        } else if (tasks.servedTea && !tasks.readLedger) {
+          showDialogue([
+            ['女将', '客は何か言っていたかい。'],
+            ['女将', '帳場ノートを見てきな。昔から203のことだけ、帳面の書き方が変なんだよ。']
+          ]);
+        } else if (tasks.readLedger && !tasks.startedNight) {
+          tasks.startedNight = true;
+          state.phase = 'night';
+          phaseLabel.textContent = '深夜調査';
+          setObjective('客室廊下から北の裏廊下へ向かう');
+          showDialogue([
+            ['女将', '表の仕事は終わり。ここからは見回りだ。'],
+            ['女将', '北の裏廊下に、今日もいないはずの客が出る。']
           ]);
         } else {
-          showDialogue([['女将', tasks.startedNight ? '北廊下の先だけ、やけに長く感じるはずだよ。' : '201の鍵を先に持っていって。']]);
+          showDialogue([['女将', state.phase === 'day' ? 'まずは201号室へ。' : '北の裏廊下へ。もう客の声は仕事じゃなく、手掛かりになる。']]);
         }
       }
     },
     {
-      id: 'key', x: 5.2, y: 12.45, r: 0.52, label: '201の鍵', sprite: 'key', phase: 'day',
-      visible: () => tasks.talkedToOkami && !tasks.gotKey,
-      onInteract() {
-        tasks.gotKey = true;
-        setObjective('右下の201号室の客に鍵を渡す');
-        showDialogue([['記録', '真鍮の鍵を取った。帳場の空気だけが少し冷たい。']]);
+      id:'tray', area:'lobby', x:7.0, y:8.8, r:.6, sprite:'tray', label:'配膳盆', phase:'day',
+      visible:()=>tasks.talkedToOkami && !tasks.gotTray,
+      onInteract(){
+        tasks.gotTray = true;
+        setObjective('客室廊下へ移動し、201号室へ入る');
+        showDialogue([['記録', '湯呑みの載った盆を持った。ぬるいのに、指先だけ熱い。']]);
       }
     },
     {
-      id: 'guest', x: 18.8, y: 12.2, r: 0.86, label: '201号室の客', sprite: 'guest', phase: 'day',
-      visible: () => tasks.gotKey && !tasks.deliveredKey,
-      onInteract() {
-        tasks.deliveredKey = true;
-        setObjective('帳場へ戻って電話に出る');
+      id:'hallDoorFromLobby', area:'lobby', x:17.2, y:8.9, r:.95, sprite:'hallDoor', label:'客室廊下へ', phase:'any',
+      visible:()=>true,
+      onInteract(){ changeArea('hall', 'fromLobby'); }
+    },
+    {
+      id:'lobbyDoorFromHall', area:'hall', x:2.0, y:9.1, r:.95, sprite:'signLobby', label:'帳場へ戻る', phase:'any',
+      visible:()=>true,
+      onInteract(){ changeArea('lobby', 'fromHall'); }
+    },
+    {
+      id:'door201', area:'hall', x:18.7, y:5.5, r:.95, sprite:'door201', label:'201号室', phase:'any',
+      visible:()=>true,
+      onInteract(){
+        if (!tasks.gotTray) {
+          showDialogue([['記録', '先に帳場でお茶を受け取る。']]);
+          return;
+        }
+        changeArea('room201', 'door');
+      }
+    },
+    {
+      id:'guest201', area:'room201', x:8.6, y:4.9, r:.85, sprite:'guest', label:'201号室の客', phase:'day',
+      visible:()=>tasks.gotTray && !tasks.servedTea,
+      onInteract(){
+        tasks.servedTea = true;
+        tasks.heardRumor = true;
+        setObjective('帳場に戻って帳面を調べる');
         showDialogue([
-          ['宿泊客', '……ありがとうございます。'],
-          ['宿泊客', 'この旅館、夜になると北の廊下だけ音が遅れて届きます。']
+          ['宿泊客', 'ありがとうございます。……ところで、203号室って今も使ってますか。'],
+          ['宿泊客', 'さっき廊下で、誰もいない部屋から咳払いが聞こえたんです。'],
+          ['宿泊客', 'しかも足音だけ、一拍遅れて追いかけてくるみたいで。']
         ]);
       }
     },
     {
-      id: 'phone', x: 7.4, y: 12.45, r: 0.55, label: '帳場の電話', sprite: 'phone', phase: 'day',
-      visible: () => tasks.deliveredKey && !tasks.answeredPhone,
-      onInteract() {
-        tasks.answeredPhone = true;
-        setObjective('北廊下の札を調べて夜の見回りに入る');
+      id:'roomExit', area:'room201', x:1.8, y:5.4, r:.95, sprite:'door201', label:'客室廊下へ戻る', phase:'any',
+      visible:()=>true,
+      onInteract(){ changeArea('hall', 'fromRoom'); }
+    },
+    {
+      id:'ledger', area:'lobby', x:9.0, y:8.8, r:.65, sprite:'ledger', label:'帳場ノート', phase:'day',
+      visible:()=>tasks.heardRumor && !tasks.readLedger,
+      onInteract(){
+        tasks.readLedger = true;
+        setObjective('女将に報告する');
         showDialogue([
-          ['内線', '……見回りを始めて。北廊下の札をめくって。'],
-          ['内線', '白い旗が見えたら、目を逸らさないで。']
+          ['帳場ノート', '「203: 宿帳なし。だが灯りは毎晩落ちる」'],
+          ['帳場ノート', '「白旗の誘導員は、客を外へ出すのではなく、奥へ入れる」']
         ]);
       }
     },
     {
-      id: 'nightDoor', x: 11.5, y: 2.2, r: 0.72, label: '北廊下の札', sprite: 'signNorth', phase: 'day',
-      visible: () => tasks.answeredPhone && !tasks.startedNight,
-      onInteract() {
-        tasks.startedNight = true;
-        state.phase = 'night';
-        phaseLabel.textContent = '深夜見回り';
-        player.x = 11.5; player.y = 2.8; player.a = Math.PI / 2;
-        setObjective('201号室の前を見回る');
+      id:'northDoor', area:'hall', x:11.5, y:1.9, r:.95, sprite:'northDoor', label:'北の裏廊下', phase:'any',
+      visible:()=>true,
+      onInteract(){
+        if (!tasks.startedNight) {
+          showDialogue([['記録', '今はまだ昼勤務。夜の見回りが始まってから開く。']]);
+          return;
+        }
+        changeArea('north', 'entry');
+        setObjective('裏廊下の作業員に話を聞く');
+      }
+    },
+    {
+      id:'worker', area:'north', x:8.6, y:7.0, r:.9, sprite:'worker', label:'誘導員', phase:'night',
+      visible:()=>tasks.startedNight && !tasks.talkedWorker,
+      onInteract(){
+        tasks.talkedWorker = true;
+        setObjective('203号室の前を確認する');
         showDialogue([
-          ['記録', '提灯の灯りが一段落ちた。旅館の広さだけが静かに伸びる。'],
-          ['女将', '201の前を見たら、帳場ノートを取りに戻るんだよ。']
+          ['誘導員', '白旗なら進め。赤旗でも進め。ここでは戻る方向が消えている。'],
+          ['誘導員', '203の前に立つと、宿帳にいない客の息だけが先に届く。']
         ]);
       }
     },
     {
-      id: 'roomCheck', x: 18.8, y: 12.2, r: 0.82, label: '201号室の前', sprite: 'sign201', phase: 'night',
-      visible: () => tasks.startedNight && !tasks.checkedRoom,
-      onInteract() {
-        tasks.checkedRoom = true;
-        setObjective('帳場ノートを取りに戻る');
+      id:'room203', area:'north', x:15.5, y:5.5, r:.95, sprite:'sign203', label:'203号室', phase:'night',
+      visible:()=>tasks.startedNight,
+      onInteract(){
+        if (!tasks.talkedWorker) {
+          showDialogue([['記録', '先に裏廊下の作業員の話を聞く。']]);
+          return;
+        }
+        tasks.checked203 = true;
         showDialogue([
-          ['記録', '201号室の前には誰もいない。'],
-          ['記録', '障子の向こうに、人が立った形だけが遅れて残っていた。']
-        ]);
-      }
-    },
-    {
-      id: 'ledger', x: 4.4, y: 12.15, r: 0.62, label: '帳場ノート', sprite: 'ledger', phase: 'night',
-      visible: () => tasks.checkedRoom && !tasks.foundLedger,
-      onInteract() {
-        tasks.foundLedger = true;
-        setObjective('北廊下の奥を確認する');
-        showDialogue([
-          ['帳場ノート', '「白旗は進め、赤旗は戻れ」'],
-          ['帳場ノート', '「だが宵宿では、その二つは同じ意味になる」']
-        ]);
-      }
-    },
-    {
-      id: 'flagman', x: 11.5, y: 1.55, r: 0.95, label: '旗を振る誘導員', sprite: 'flagman', phase: 'night',
-      visible: () => tasks.foundLedger && !tasks.sawFlagman,
-      onInteract() {
-        tasks.sawFlagman = true;
-        showDialogue([
-          ['誘導員', '白旗でも、赤旗でも、今夜は同じだ。'],
-          ['誘導員', '戻ったつもりでも、お前はずっと旅館の内側にいる。']
+          ['記録', '戸を開けた瞬間、昼に歩いた客室廊下が、部屋の中から続いていた。'],
+          ['記録', '201の客の声、女将の声、誰の宿帳にもない咳払いが、同じ距離で重なっている。']
         ], () => {
-          endGame('赤旗の廊下', '出口へ戻ったはずなのに、帳場の灯りは遠ざかるばかりだった。宵宿の見回りは、朝まで終わらない。');
+          endGame('203号室の反転', '昼の仕事で聞いた違和感は、夜にはすべて旅館の構造そのものになっていた。宵宿は客を泊めるのではなく、噂ごと閉じ込めている。');
         });
       }
+    },
+    {
+      id:'northReturn', area:'north', x:2.0, y:7.6, r:.95, sprite:'northDoor', label:'客室廊下へ戻る', phase:'night',
+      visible:()=>true,
+      onInteract(){ changeArea('hall', 'fromNorth'); }
+    },
+  ];
+
+  function currentObjectiveTargetId() {
+    if (!tasks.talkedToOkami) return 'okami';
+    if (!tasks.gotTray) return 'tray';
+    if (!tasks.servedTea) return player.area === 'room201' ? 'guest201' : 'door201';
+    if (!tasks.readLedger) return player.area === 'lobby' ? 'ledger' : 'lobbyDoorFromHall';
+    if (!tasks.startedNight) return 'okami';
+    if (!tasks.talkedWorker) return player.area === 'north' ? 'worker' : 'northDoor';
+    if (!tasks.checked203) return player.area === 'north' ? 'room203' : 'northDoor';
+    return null;
+  }
+
+  function interactivesInArea(area) {
+    return interactives.filter(obj => obj.area === area && obj.visible() && (obj.phase === 'any' || obj.phase === state.phase));
+  }
+  function decorInArea(area) { return decor.filter(obj => obj.area === area); }
+
+  function getNearbyInteractive() {
+    const list = interactivesInArea(player.area);
+    let best = null;
+    for (const obj of list) {
+      const dx = obj.x - player.x, dy = obj.y - player.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > obj.r + 0.75) continue;
+      let rel = Math.atan2(dy, dx) - player.a;
+      while (rel < -Math.PI) rel += Math.PI * 2;
+      while (rel > Math.PI) rel -= Math.PI * 2;
+      if (Math.abs(rel) > 0.7) continue;
+      if (!best || dist < best.dist) best = { obj, dist };
     }
-  ];
-
-  const decor = [
-    { id: 'frontSign', x: 2.5, y: 11.3, r: 0.7, sprite: 'signFront', label: '帳場', phase: 'any' },
-    { id: 'roomSign', x: 18.9, y: 11.2, r: 0.74, sprite: 'sign201', label: '201号室', phase: 'any' },
-    { id: 'northSign', x: 11.5, y: 3.0, r: 0.65, sprite: 'signNorth', label: '北廊下', phase: 'any' },
-    { id: 'lan1', x: 6.0, y: 10.8, r: 0.74, sprite: 'lantern', label: '', phase: 'any' },
-    { id: 'lan2', x: 17.2, y: 10.8, r: 0.74, sprite: 'lantern', label: '', phase: 'any' },
-    { id: 'lan3', x: 6.1, y: 2.2, r: 0.74, sprite: 'lantern', label: '', phase: 'any' },
-    { id: 'lan4', x: 17.0, y: 2.2, r: 0.74, sprite: 'lantern', label: '', phase: 'any' },
-  ];
-
-  function getActiveTarget() {
-    const targetId = currentObjectiveTargetId();
-    return interactives.find(obj => obj.id === targetId && obj.visible() && (obj.phase === state.phase || obj.phase === 'any')) || null;
+    return best ? best.obj : null;
   }
 
   function directionText(angle) {
@@ -498,10 +578,17 @@
     return '左奥';
   }
 
+  function getActiveTarget() {
+    const targetId = currentObjectiveTargetId();
+    return interactives.find(obj => obj.id === targetId && obj.area === player.area && obj.visible() && (obj.phase === state.phase || obj.phase === 'any')) || null;
+  }
+
   function updateObjectiveDisplay() {
-    const target = getActiveTarget();
-    if (!target) {
-      objectiveBox.textContent = state.objective;
+    const targetId = currentObjectiveTargetId();
+    const target = interactives.find(obj => obj.id === targetId && obj.visible() && (obj.phase === state.phase || obj.phase === 'any')) || null;
+    if (!target) { objectiveBox.textContent = state.objective; return; }
+    if (target.area !== player.area) {
+      objectiveBox.textContent = `目標: ${state.objective} / 現在地: ${currentArea().name} / 目的地: ${areas[target.area].name}`;
       return;
     }
     let rel = Math.atan2(target.y - player.y, target.x - player.x) - player.a;
@@ -511,453 +598,272 @@
     objectiveBox.textContent = `目標: ${state.objective} / ${directionText(rel)} / 約${dist.toFixed(1)}m`;
   }
 
-  function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(320, window.innerWidth);
-    const h = Math.max(480, window.innerHeight);
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
-    ctx.imageSmoothingEnabled = false;
+  function sampleTexture(tex, u, v, brightness) {
+    const tx = (((u % 1) + 1) % 1 * 31) | 0;
+    const ty = (((v % 1) + 1) % 1 * 31) | 0;
+    const idx = (ty * 32 + tx) * 4;
+    return [Math.min(255, tex[idx] * brightness), Math.min(255, tex[idx + 1] * brightness), Math.min(255, tex[idx + 2] * brightness)];
   }
 
-  function castRay(angle) {
-    const sin = Math.sin(angle);
-    const cos = Math.cos(angle);
-    let depth = 0;
-    while (depth < MAX_DEPTH) {
-      depth += 0.01;
-      const x = player.x + cos * depth;
-      const y = player.y + sin * depth;
-      const tile = tileAt(x, y);
-      if (isSolidTile(tile)) {
-        const fx = x - Math.floor(x);
-        const fy = y - Math.floor(y);
-        const side = (fx < 0.03 || fx > 0.97) ? 0 : 1;
-        const edge = (fx < 0.03 || fx > 0.97 || fy < 0.03 || fy > 0.97);
-        const u = side === 0 ? fy : fx;
-        const tex = tile === 'S' ? textures.shoji : textures.wood;
-        return { depth, side, edge, tex, u };
-      }
-    }
-    return { depth: MAX_DEPTH, side: 0, edge: false, tex: textures.dark, u: 0 };
-  }
+  function drawBackground() {
+    const area = currentArea();
+    const gradSky = g.createLinearGradient(0, 0, 0, OFF_H / 2);
+    gradSky.addColorStop(0, area.skyTop); gradSky.addColorStop(1, area.skyBottom);
+    g.fillStyle = gradSky; g.fillRect(0, 0, OFF_W, OFF_H / 2);
 
-  const depthBuffer = new Float32Array(OFF_W);
+    const gradFloor = g.createLinearGradient(0, OFF_H / 2, 0, OFF_H);
+    gradFloor.addColorStop(0, area.floorA); gradFloor.addColorStop(1, area.floorB);
+    g.fillStyle = gradFloor; g.fillRect(0, OFF_H / 2, OFF_W, OFF_H / 2);
 
-  function floorShade(wx, wy, t) {
-    const inLobby = wy > 10.5;
-    const inNorth = wy < 3.4;
-    const ring = (wx > 3.6 && wx < 19.4 && wy > 2.6 && wy < 10.4);
-
-    if (inLobby) {
-      const tatami = ((Math.floor(wx * 1.1) + Math.floor(wy * 1.2)) & 1) ? 1 : 0;
-      return tatami ? [125 - t * 22, 116 - t * 18, 90 - t * 14] : [113 - t * 22, 104 - t * 16, 80 - t * 14];
-    }
-    if (inNorth) {
-      const carpet = Math.abs(wx - 11.5) < 1.2;
-      return carpet ? [96 - t * 18, 35 - t * 12, 34 - t * 8] : [78 - t * 20, 58 - t * 14, 42 - t * 12];
-    }
-    if (ring) {
-      const verticalRunner = (Math.abs(wx - 4.5) < 0.5) || (Math.abs(wx - 18.5) < 0.5);
-      const horizontalRunner = (Math.abs(wy - 2.5) < 0.5) || (Math.abs(wy - 10.5) < 0.5);
-      const runner = verticalRunner || horizontalRunner;
-      return runner ? [112 - t * 24, 34 - t * 12, 32 - t * 10] : [86 - t * 20, 61 - t * 14, 42 - t * 10];
-    }
-    return [66 - t * 18, 50 - t * 10, 36 - t * 8];
-  }
-
-  function drawBackground(now) {
-    const horizon = OFF_H * 0.44;
-    const sky = g.createLinearGradient(0, 0, 0, horizon);
-    if (state.phase === 'night') {
-      sky.addColorStop(0, '#070910');
-      sky.addColorStop(1, '#17131a');
-    } else {
-      sky.addColorStop(0, '#201712');
-      sky.addColorStop(1, '#513928');
-    }
-    g.fillStyle = sky;
-    g.fillRect(0, 0, OFF_W, horizon);
-
-    g.fillStyle = state.phase === 'night' ? '#1d140f' : '#6f533d';
-    g.fillRect(0, horizon, OFF_W, OFF_H - horizon);
-
-    for (let y = horizon; y < OFF_H; y++) {
-      const t = (y - horizon) / (OFF_H - horizon);
-      const rowDist = 0.7 + t * 9.0;
-      const worldLeftX = player.x + Math.cos(player.a - FOV / 2) * rowDist;
-      const worldLeftY = player.y + Math.sin(player.a - FOV / 2) * rowDist;
-      const worldRightX = player.x + Math.cos(player.a + FOV / 2) * rowDist;
-      const worldRightY = player.y + Math.sin(player.a + FOV / 2) * rowDist;
-      for (let x = 0; x < OFF_W; x += 2) {
-        const u = x / OFF_W;
-        const wx = worldLeftX + (worldRightX - worldLeftX) * u;
-        const wy = worldLeftY + (worldRightY - worldLeftY) * u;
-        const [r, gg, b] = floorShade(wx, wy, t);
-        g.fillStyle = `rgb(${Math.max(0,r)|0},${Math.max(0,gg)|0},${Math.max(0,b)|0})`;
-        g.fillRect(x, y, 2, 1);
-      }
-    }
-
-    const lights = [0.18, 0.5, 0.82];
-    for (const lc of lights) {
-      const r = state.phase === 'night' ? 18 : 24;
-      const px = OFF_W * lc;
-      const py = horizon - 4;
-      const grad = g.createRadialGradient(px, py, 0, px, py, r);
-      grad.addColorStop(0, state.phase === 'night' ? 'rgba(255,210,120,0.15)' : 'rgba(255,230,180,0.22)');
-      grad.addColorStop(1, 'rgba(255,212,130,0)');
-      g.fillStyle = grad;
-      g.fillRect(px - r, py - r, r * 2, r * 2);
-    }
-
+    g.fillStyle = 'rgba(255,255,255,0.035)';
+    for (let y = OFF_H / 2; y < OFF_H; y += 10) g.fillRect(0, y, OFF_W, 1);
     g.fillStyle = 'rgba(0,0,0,0.14)';
-    g.fillRect(0, horizon - 1, OFF_W, 2);
+    for (let y = 0; y < OFF_H; y += 4) g.fillRect(0, y, OFF_W, 1);
   }
 
-  function drawWalls() {
-    const ambient = state.phase === 'night' ? AMBIENT_NIGHT + state.flicker : AMBIENT_DAY;
+  function renderWorld() {
+    drawBackground();
+    const zBuffer = new Array(OFF_W).fill(MAX_DEPTH);
+
     for (let x = 0; x < OFF_W; x++) {
       const rayAngle = player.a - FOV / 2 + (x / OFF_W) * FOV;
-      const hit = castRay(rayAngle);
-      const corrected = hit.depth * Math.cos(rayAngle - player.a);
-      depthBuffer[x] = corrected;
-      const wallH = Math.min(OFF_H * 1.15, (OFF_H * 0.84) / Math.max(corrected, 0.0001));
-      const top = ((OFF_H - wallH) / 2) | 0;
-      const brightness = Math.max(0.20, (state.phase === 'night' ? 1.14 : 1.36) - corrected * 0.075 - hit.side * 0.11) * ambient;
+      const sin = Math.sin(rayAngle), cos = Math.cos(rayAngle);
+      let dist = 0.02, hit = false, hitX = 0, hitY = 0, tile = '#';
+      while (dist < MAX_DEPTH && !hit) {
+        hitX = player.x + cos * dist;
+        hitY = player.y + sin * dist;
+        tile = tileAt(hitX, hitY);
+        if (tile !== '.') hit = true; else dist += 0.02;
+      }
+      const perp = Math.max(0.001, dist * Math.cos(rayAngle - player.a));
+      zBuffer[x] = perp;
+      const wallH = Math.min(OFF_H * 1.5, (OFF_H / perp) * 0.9);
+      const startY = ((OFF_H - wallH) / 2) | 0;
+      const tex = textures[tile] || textures['#'];
+      const fracX = hitX - Math.floor(hitX), fracY = hitY - Math.floor(hitY);
+      const useU = (fracX < 0.05 || fracX > 0.95) ? fracY : fracX;
+      const sideShade = (fracX < 0.05 || fracX > 0.95) ? 0.88 : 1.0;
+      const brightness = Math.max(0.22, (state.phase === 'night' ? 0.72 : 1.04) * sideShade * (1.55 - perp * 0.06));
       for (let y = 0; y < wallH; y++) {
         const v = y / wallH;
-        const color = sampleTexture(hit.tex, hit.u, v, brightness);
-        if (hit.edge) {
-          color[0] *= 0.7; color[1] *= 0.7; color[2] *= 0.7;
-        }
-        g.fillStyle = `rgb(${color[0]|0},${color[1]|0},${color[2]|0})`;
-        g.fillRect(x, top + y, 1, 1);
+        const [r, gg, b] = sampleTexture(tex, useU, v, brightness);
+        g.fillStyle = `rgb(${r|0},${gg|0},${b|0})`;
+        g.fillRect(x, startY + y, 1, 1);
       }
-    }
-  }
-
-  function renderSpriteEntity(obj) {
-    const dx = obj.x - player.x;
-    const dy = obj.y - player.y;
-    const dist = Math.hypot(dx, dy);
-    const angleTo = Math.atan2(dy, dx) - player.a;
-    let rel = angleTo;
-    while (rel < -Math.PI) rel += Math.PI * 2;
-    while (rel > Math.PI) rel -= Math.PI * 2;
-    if (Math.abs(rel) > FOV * 0.70 || dist < 0.15) return;
-
-    const sheet = spriteSheets[obj.sprite];
-    if (!sheet) return;
-    const screenX = (0.5 + rel / FOV) * OFF_W;
-    const size = Math.max(12, (OFF_H * obj.r * 2.85) / dist);
-    const drawW = size;
-    const drawH = size * (sheet.height / sheet.width);
-    const top = OFF_H * 0.58 - drawH * 0.5;
-    const left = screenX - drawW / 2;
-    const isTarget = obj.id && obj.id === currentObjectiveTargetId();
-
-    if (isTarget) {
-      const haloR = drawW * 0.66;
-      const halo = g.createRadialGradient(screenX, top + drawH * 0.42, 0, screenX, top + drawH * 0.42, haloR);
-      halo.addColorStop(0, 'rgba(255,220,140,0.42)');
-      halo.addColorStop(1, 'rgba(255,220,140,0)');
-      g.fillStyle = halo;
-      g.fillRect(screenX - haloR, top + drawH * 0.42 - haloR, haloR * 2, haloR * 2);
+      g.fillStyle = `rgba(0,0,0,${Math.min(0.5, perp / MAX_DEPTH)})`;
+      g.fillRect(x, 0, 1, OFF_H);
     }
 
-    for (let sx = 0; sx < drawW; sx++) {
-      const px = (left + sx) | 0;
-      if (px < 0 || px >= OFF_W) continue;
-      if (depthBuffer[px] < dist - 0.10) continue;
-      const srcX = (sx / drawW) * sheet.width;
-      g.drawImage(sheet, srcX, 0, 1, sheet.height, px, top, 1, drawH);
-    }
+    const allSprites = [];
+    for (const obj of decorInArea(player.area)) allSprites.push({ ...obj, interactive:false });
+    for (const obj of interactivesInArea(player.area)) allSprites.push({ ...obj, interactive:true });
 
-    if ((dist < 3.6 || isTarget) && obj.label) {
-      const label = obj.label;
-      g.font = 'bold 8px sans-serif';
-      const tw = g.measureText(label).width + 10;
-      const tx = Math.max(3, Math.min(OFF_W - tw - 3, screenX - tw / 2));
-      const ty = Math.max(4, top - 12);
-      g.fillStyle = 'rgba(4,6,10,0.88)';
-      g.fillRect(tx, ty, tw, 10);
-      g.strokeStyle = isTarget ? '#f0c779' : 'rgba(255,255,255,0.16)';
-      g.strokeRect(tx + 0.5, ty + 0.5, tw - 1, 9);
-      g.fillStyle = isTarget ? '#f0c779' : '#f4eee3';
-      g.fillText(label, tx + 5, ty + 7.7);
-    }
-  }
+    allSprites.sort((a, b) => {
+      const da = (a.x - player.x) ** 2 + (a.y - player.y) ** 2;
+      const db = (b.x - player.x) ** 2 + (b.y - player.y) ** 2;
+      return db - da;
+    });
 
-  function drawSprites() {
-    const list = [];
-    for (const obj of decor) if (obj.phase === 'any' || obj.phase === state.phase) list.push(obj);
-    for (const obj of interactives) {
-      if ((obj.phase === state.phase || obj.phase === 'any') && obj.visible()) list.push(obj);
-    }
-    list.sort((a, b) => Math.hypot(b.x - player.x, b.y - player.y) - Math.hypot(a.x - player.x, a.y - player.y));
-    list.forEach(renderSpriteEntity);
-  }
-
-  function drawOverlays(now) {
-    state.pulse += 0.016;
-    const vignette = g.createRadialGradient(OFF_W * 0.5, OFF_H * 0.5, OFF_H * 0.12, OFF_W * 0.5, OFF_H * 0.5, OFF_H * 0.8);
-    vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(1, state.phase === 'night' ? 'rgba(0,0,0,0.48)' : 'rgba(0,0,0,0.28)');
-    g.fillStyle = vignette;
-    g.fillRect(0, 0, OFF_W, OFF_H);
-
-    g.globalAlpha = state.phase === 'night' ? 0.12 : 0.07;
-    for (let i = 0; i < 36; i++) {
-      g.fillStyle = i % 2 ? '#ffffff' : '#9b6b40';
-      g.fillRect(Math.random() * OFF_W, Math.random() * OFF_H, 1, 1);
-    }
-    g.globalAlpha = 1;
-
-    g.fillStyle = 'rgba(255,255,255,0.03)';
-    for (let y = 0; y < OFF_H; y += 3) g.fillRect(0, y, OFF_W, 1);
-  }
-
-  function drawFrame(now) {
-    state.flicker = state.phase === 'night' ? Math.sin(now * 0.004) * 0.05 + Math.cos(now * 0.002) * 0.018 : 0;
-    drawBackground(now);
-    drawWalls();
-    drawSprites();
-    drawOverlays(now);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
-  }
-
-  function drawMiniMap() {
-    const w = mapCanvas.width;
-    const h = mapCanvas.height;
-    mapCtx.fillStyle = '#0b0d12';
-    mapCtx.fillRect(0, 0, w, h);
-    const cell = Math.min(w / MAP_W, h / MAP_H);
-    const ox = (w - MAP_W * cell) / 2;
-    const oy = (h - MAP_H * cell) / 2;
-
-    for (let y = 0; y < MAP_H; y++) {
-      for (let x = 0; x < MAP_W; x++) {
-        const tile = map[y][x];
-        if (tile === '#') mapCtx.fillStyle = '#5d3d2a';
-        else if (tile === 'S') mapCtx.fillStyle = '#b9a88d';
-        else mapCtx.fillStyle = '#1b1d24';
-        mapCtx.fillRect(ox + x * cell, oy + y * cell, cell - 0.5, cell - 0.5);
-      }
-    }
-
-    for (const obj of decor) {
-      mapCtx.fillStyle = obj.id === 'roomSign' ? '#9f78dd' : '#d9b56c';
-      mapCtx.fillRect(ox + obj.x * cell - 1, oy + obj.y * cell - 1, 3, 3);
-    }
-
-    for (const obj of interactives) {
-      if (!(obj.phase === state.phase || obj.phase === 'any') || !obj.visible()) continue;
-      mapCtx.fillStyle = obj.id === currentObjectiveTargetId() ? '#f1cf7a' : '#72b2e9';
-      mapCtx.beginPath();
-      mapCtx.arc(ox + obj.x * cell, oy + obj.y * cell, obj.id === currentObjectiveTargetId() ? 3.1 : 2.2, 0, Math.PI * 2);
-      mapCtx.fill();
-    }
-
-    const px = ox + player.x * cell;
-    const py = oy + player.y * cell;
-    mapCtx.fillStyle = '#ffffff';
-    mapCtx.beginPath();
-    mapCtx.arc(px, py, 3.2, 0, Math.PI * 2);
-    mapCtx.fill();
-    mapCtx.strokeStyle = '#ffffff';
-    mapCtx.beginPath();
-    mapCtx.moveTo(px, py);
-    mapCtx.lineTo(px + Math.cos(player.a) * 8, py + Math.sin(player.a) * 8);
-    mapCtx.stroke();
-  }
-
-  function updateNearby() {
-    state.nearby = null;
-    promptBox.classList.add('hidden');
-    let best = null;
-    for (const obj of interactives) {
-      if (!(obj.phase === state.phase || obj.phase === 'any') || !obj.visible()) continue;
-      const dx = obj.x - player.x;
-      const dy = obj.y - player.y;
+    const objectiveId = currentObjectiveTargetId();
+    for (const sp of allSprites) {
+      const dx = sp.x - player.x, dy = sp.y - player.y;
       const dist = Math.hypot(dx, dy);
       let rel = Math.atan2(dy, dx) - player.a;
       while (rel < -Math.PI) rel += Math.PI * 2;
       while (rel > Math.PI) rel -= Math.PI * 2;
-      if (dist < 1.8 && Math.abs(rel) < 0.85) {
-        if (!best || dist < best.dist) best = { obj, dist };
+      if (Math.abs(rel) > FOV * 0.75 || dist < 0.2) continue;
+      const screenX = (0.5 + (rel / FOV)) * OFF_W;
+      const size = Math.min(180, (OFF_H / dist) * (sp.r * 0.95 + 0.6));
+      const screenY = OFF_H * 0.58 - size * 0.76;
+      const left = (screenX - size / 2) | 0;
+      const right = (screenX + size / 2) | 0;
+      let visible = false;
+      for (let sx = Math.max(0, left); sx < Math.min(OFF_W, right); sx++) {
+        if (dist < zBuffer[sx] + 0.15) { visible = true; break; }
+      }
+      if (!visible) continue;
+      if (sp.id === objectiveId) {
+        g.fillStyle = 'rgba(255, 218, 96, 0.18)';
+        g.beginPath(); g.ellipse(screenX, screenY + size * 0.64, size * 0.44, size * 0.16, 0, 0, Math.PI * 2); g.fill();
+      }
+      g.drawImage(sprites[sp.sprite], left, screenY, size, size * 1.5);
+      if (sp.interactive && dist < 2.7) {
+        g.fillStyle = 'rgba(0,0,0,0.56)'; g.fillRect(screenX - 30, screenY - 16, 60, 12);
+        g.fillStyle = '#f4eee3'; g.font = '10px sans-serif'; g.textAlign = 'center'; g.fillText(sp.label, screenX, screenY - 7);
       }
     }
-    if (best) {
-      state.nearby = best.obj;
-      promptBox.textContent = `ACTで ${best.obj.label}`;
+
+    g.fillStyle = 'rgba(0,0,0,0.28)';
+    g.fillRect(0, 0, OFF_W, 4); g.fillRect(0, OFF_H - 4, OFF_W, 4);
+    g.fillStyle = 'rgba(255,255,255,0.66)';
+    g.fillRect(OFF_W/2 - 1, OFF_H/2 - 10, 2, 20); g.fillRect(OFF_W/2 - 10, OFF_H/2 - 1, 20, 2);
+
+    if (state.areaFlash > 0) {
+      g.fillStyle = `rgba(255,240,190,${state.areaFlash * 0.12})`;
+      g.fillRect(0, 0, OFF_W, OFF_H);
+    }
+  }
+
+  function renderMiniMap() {
+    const area = currentArea();
+    const map = area.map;
+    const scale = Math.min(mapCanvas.width / map[0].length, mapCanvas.height / map.length);
+    mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+    mapCtx.fillStyle = '#11131b'; mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+    for (let y = 0; y < map.length; y++) {
+      for (let x = 0; x < map[0].length; x++) {
+        const t = map[y][x];
+        mapCtx.fillStyle = t === '.' ? '#2b302d' : (t === 'S' ? '#c8bda4' : t === 'D' ? '#a58561' : '#65452c');
+        mapCtx.fillRect(x * scale, y * scale, scale - 1, scale - 1);
+      }
+    }
+    const targetId = currentObjectiveTargetId();
+    for (const it of interactives) {
+      if (it.area !== player.area || !it.visible() || (it.phase !== state.phase && it.phase !== 'any')) continue;
+      mapCtx.fillStyle = it.id === targetId ? '#ffd86a' : '#6cd5b5';
+      mapCtx.fillRect((it.x - 0.15) * scale, (it.y - 0.15) * scale, scale * 0.3, scale * 0.3);
+    }
+    mapCtx.fillStyle = '#ff5d5d';
+    mapCtx.beginPath(); mapCtx.arc(player.x * scale, player.y * scale, 3, 0, Math.PI * 2); mapCtx.fill();
+    mapCtx.strokeStyle = '#ffffff';
+    mapCtx.beginPath();
+    mapCtx.moveTo(player.x * scale, player.y * scale);
+    mapCtx.lineTo((player.x + Math.cos(player.a) * 0.8) * scale, (player.y + Math.sin(player.a) * 0.8) * scale);
+    mapCtx.stroke();
+  }
+
+  function updatePrompt() {
+    if (state.inDialogue || state.ending) { promptBox.classList.add('hidden'); return; }
+    state.nearby = getNearbyInteractive();
+    if (state.nearby) {
+      promptBox.textContent = `ACT / E : ${state.nearby.label}`;
       promptBox.classList.remove('hidden');
+    } else {
+      promptBox.classList.add('hidden');
     }
   }
 
   function interact() {
     if (state.ending) return;
     if (state.inDialogue) { advanceDialogue(); return; }
-    if (state.nearby && typeof state.nearby.onInteract === 'function') {
-      state.nearby.onInteract();
-    }
+    if (state.nearby && typeof state.nearby.onInteract === 'function') state.nearby.onInteract();
   }
 
-  function updateMovement(dt) {
-    if (state.inDialogue || state.ending) return;
-    let forward = 0;
-    let strafe = 0;
-    if (keys.w) forward += 1;
-    if (keys.s) forward -= 1;
-    if (keys.d) strafe += 1;
-    if (keys.a) strafe -= 1;
-    forward += -moveInput.y;
-    strafe += moveInput.x;
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(320, window.innerWidth);
+    const h = Math.max(480, window.innerHeight);
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    ctx.imageSmoothingEnabled = false;
+  }
 
-    const len = Math.hypot(forward, strafe) || 1;
-    forward /= len;
-    strafe /= len;
-
-    const speed = player.speed * dt;
-    const nx = player.x + Math.cos(player.a) * forward * speed + Math.cos(player.a + Math.PI / 2) * strafe * speed;
-    const ny = player.y + Math.sin(player.a) * forward * speed + Math.sin(player.a + Math.PI / 2) * strafe * speed;
-    moveAndCollide(nx, ny);
-
-    if (!isTouch) {
-      player.a += lookInput.dx * 0.0024;
-      lookInput.dx = 0;
-    } else {
-      player.a += lookInput.dx * 0.0028;
+  function update(dt) {
+    if (!state.inDialogue && !state.ending) {
+      let moveX = 0, moveY = 0;
+      if (keys.w) moveY += 1; if (keys.s) moveY -= 1; if (keys.a) moveX -= 1; if (keys.d) moveX += 1;
+      moveX += moveInput.x; moveY += moveInput.y;
+      const len = Math.hypot(moveX, moveY) || 1;
+      moveX /= len; moveY /= len;
+      const moveSpeed = player.speed * dt;
+      const nx = player.x + (Math.cos(player.a) * moveY + Math.cos(player.a - Math.PI / 2) * moveX) * moveSpeed;
+      const ny = player.y + (Math.sin(player.a) * moveY + Math.sin(player.a - Math.PI / 2) * moveX) * moveSpeed;
+      moveAndCollide(nx, ny);
+      player.a += lookInput.dx * 0.0045;
       lookInput.dx *= 0.72;
     }
+    state.pulse += dt * 2.4;
+    state.areaFlash = Math.max(0, state.areaFlash - dt * 1.6);
+    areaLabel.textContent = currentArea().name;
+    updatePrompt();
+    updateObjectiveDisplay();
+  }
+
+  function draw() {
+    renderWorld();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+    renderMiniMap();
   }
 
   let last = performance.now();
-  function frame(now) {
+  function loop(now) {
     const dt = Math.min(0.033, (now - last) / 1000);
     last = now;
-    updateMovement(dt);
-    updateNearby();
-    updateObjectiveDisplay();
-    drawFrame(now);
-    drawMiniMap();
-    requestAnimationFrame(frame);
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
   }
 
   function bindKeyboard() {
     window.addEventListener('keydown', (e) => {
-      const k = e.key.toLowerCase();
-      if (k === 'w') keys.w = true;
-      if (k === 'a') keys.a = true;
-      if (k === 's') keys.s = true;
-      if (k === 'd') keys.d = true;
-      if (k === 'e' || k === 'enter' || k === ' ') { e.preventDefault(); interact(); }
-    });
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = true;
+      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = true;
+      if (e.key === 'a' || e.key === 'A') keys.a = true;
+      if (e.key === 'd' || e.key === 'D') keys.d = true;
+      if (e.key === 'e' || e.key === 'E' || e.key === ' ') { e.preventDefault(); interact(); }
+    }, { passive:false });
     window.addEventListener('keyup', (e) => {
-      const k = e.key.toLowerCase();
-      if (k === 'w') keys.w = false;
-      if (k === 'a') keys.a = false;
-      if (k === 's') keys.s = false;
-      if (k === 'd') keys.d = false;
-    });
-    let dragging = false;
-    canvas.addEventListener('pointerdown', (e) => {
-      if (isTouch) return;
-      dragging = true;
-      lookInput.lastX = e.clientX;
-    });
-    window.addEventListener('pointerup', () => dragging = false);
-    window.addEventListener('pointermove', (e) => {
-      if (!dragging || isTouch) return;
-      lookInput.dx = e.clientX - lookInput.lastX;
-      lookInput.lastX = e.clientX;
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = false;
+      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = false;
+      if (e.key === 'a' || e.key === 'A') keys.a = false;
+      if (e.key === 'd' || e.key === 'D') keys.d = false;
     });
   }
 
   function bindMovePad() {
-    const radius = 42;
-    function update(clientX, clientY) {
-      const rect = movePad.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      let dx = clientX - cx;
-      let dy = clientY - cy;
-      const dist = Math.hypot(dx, dy) || 1;
-      const limited = Math.min(radius, dist);
-      dx = dx / dist * limited;
-      dy = dy / dist * limited;
-      moveInput.x = dx / radius;
-      moveInput.y = dy / radius;
+    const rectInfo = () => movePad.getBoundingClientRect();
+    function setStick(clientX, clientY) {
+      const rect = rectInfo();
+      const cx = rect.left + rect.width / 2; const cy = rect.top + rect.height / 2;
+      let dx = clientX - cx, dy = clientY - cy;
+      const max = rect.width * 0.34;
+      const len = Math.hypot(dx, dy) || 1;
+      if (len > max) { dx = dx / len * max; dy = dy / len * max; }
       moveKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-    }
-    function reset() {
-      moveInput.active = false;
-      moveInput.pointerId = null;
-      moveInput.x = 0;
-      moveInput.y = 0;
-      moveKnob.style.transform = 'translate(-50%, -50%)';
+      moveInput.x = dx / max; moveInput.y = -dy / max;
     }
     movePad.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      moveInput.active = true;
-      moveInput.pointerId = e.pointerId;
-      movePad.setPointerCapture(e.pointerId);
-      update(e.clientX, e.clientY);
+      moveInput.active = true; moveInput.pointerId = e.pointerId; movePad.setPointerCapture(e.pointerId); setStick(e.clientX, e.clientY);
     });
     movePad.addEventListener('pointermove', (e) => {
-      if (!moveInput.active || moveInput.pointerId !== e.pointerId) return;
-      e.preventDefault();
-      update(e.clientX, e.clientY);
+      if (!moveInput.active || e.pointerId !== moveInput.pointerId) return; setStick(e.clientX, e.clientY);
     });
-    movePad.addEventListener('pointerup', reset);
-    movePad.addEventListener('pointercancel', reset);
-    movePad.addEventListener('lostpointercapture', reset);
-  }
-
-  function bindLookDrag() {
-    window.addEventListener('pointerdown', (e) => {
-      if (!isTouch) return;
-      if (e.target === movePad || movePad.contains(e.target) || e.target === actBtn) return;
-      if (e.clientX < window.innerWidth * 0.45) return;
-      lookInput.active = true;
-      lookInput.pointerId = e.pointerId;
-      lookInput.lastX = e.clientX;
-    }, { passive: false });
-
-    window.addEventListener('pointermove', (e) => {
-      if (!isTouch || !lookInput.active || lookInput.pointerId !== e.pointerId) return;
-      e.preventDefault();
-      lookInput.dx += (e.clientX - lookInput.lastX);
-      lookInput.lastX = e.clientX;
-    }, { passive: false });
-
-    function end(e) {
-      if (!isTouch || !lookInput.active) return;
-      if (lookInput.pointerId !== null && e.pointerId !== lookInput.pointerId) return;
-      lookInput.active = false;
-      lookInput.pointerId = null;
+    function endStick(e) {
+      if (!moveInput.active || (e && e.pointerId !== moveInput.pointerId)) return;
+      moveInput.active = false; moveInput.pointerId = null; moveInput.x = 0; moveInput.y = 0; moveKnob.style.transform = 'translate(-50%, -50%)';
     }
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
+    movePad.addEventListener('pointerup', endStick); movePad.addEventListener('pointercancel', endStick);
   }
 
-  dialogueBox.addEventListener('pointerup', interact);
-  actBtn.addEventListener('pointerup', interact);
-  saveBtn.addEventListener('pointerup', saveGame);
-  loadBtn.addEventListener('pointerup', loadGame);
-  window.addEventListener('resize', resize);
+  function bindLook() {
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.clientX < window.innerWidth * 0.45) return;
+      lookInput.active = true; lookInput.pointerId = e.pointerId; lookInput.lastX = e.clientX; canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!lookInput.active || e.pointerId !== lookInput.pointerId) return;
+      const dx = e.clientX - lookInput.lastX; lookInput.lastX = e.clientX; lookInput.dx += dx;
+    });
+    function endLook(e) { if (!lookInput.active || e.pointerId !== lookInput.pointerId) return; lookInput.active = false; lookInput.pointerId = null; }
+    canvas.addEventListener('pointerup', endLook); canvas.addEventListener('pointercancel', endLook);
+  }
 
-  bindKeyboard();
-  bindMovePad();
-  bindLookDrag();
+  saveBtn.addEventListener('click', saveGame);
+  loadBtn.addEventListener('click', loadGame);
+  actBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); interact(); });
+  dialogueBox.addEventListener('pointerdown', () => { if (state.inDialogue) advanceDialogue(); });
+
+  bindKeyboard(); bindMovePad(); bindLook();
+  window.addEventListener('resize', resize);
   resize();
+
   if (window.__YOINADO_CONTINUE__) {
     if (!loadGame()) startNew();
   } else {
     startNew();
   }
-  requestAnimationFrame(frame);
+
+  requestAnimationFrame(loop);
 })();
