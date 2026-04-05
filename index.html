@@ -38,22 +38,25 @@
       <div class="title-bg-glow"></div>
       <div class="title-film"></div>
       <div id="titleInner" class="title-shell">
-        <div class="title-topline">PS1風 LOW-POLY JAPANESE HORROR / v7</div>
-        <div class="title-subkanji">タイトル遷移安定版</div>
+        <div class="title-topline">PS1風 LOW-POLY JAPANESE HORROR / v8</div>
+        <div class="title-subkanji">タイトル遷移確定版</div>
         <h1 class="title-logo">宵宿</h1>
         <div class="title-ruby">YOIYADO</div>
         <p class="title-copy">
           昼は接客、夜は見回り。<br>
           まずは旅館内を歩き、女将・客・電話に触って操作感を確かめてください。
+          反応しない場合でも、タイトル中央をタップすれば開始するように修正しています。
         </p>
 
         <div class="title-menu">
-          <button id="startBtn" type="button" class="primary-btn title-menu-btn" onclick="window.__startGame && window.__startGame()" ontouchend="window.__startGame && window.__startGame(); return false;">はじめから</button>
+          <button id="startBtn" type="button" class="primary-btn title-menu-btn" onclick="window.__safeStartYoinado && window.__safeStartYoinado(); return false;" ontouchend="window.__safeStartYoinado && window.__safeStartYoinado(); return false;" onpointerup="window.__safeStartYoinado && window.__safeStartYoinado(); return false;">はじめから</button>
           <button id="continueBtn" type="button" class="primary-btn secondary-btn title-menu-btn hidden">つづきから</button>
           <button id="howtoBtn" type="button" class="primary-btn ghost-btn title-menu-btn">遊び方</button>
         </div>
 
-        <div class="title-tap-hint">はじめから を押すか、このパネルをタップすると開始</div>
+        <div class="title-tap-hint">はじめから を押すか、このパネル中央をタップすると開始</div>
+
+        <div id="startStatus" class="title-start-status">待機中</div>
 
         <div class="title-footer-meta">
           <div>PC: WASD / マウスドラッグ / E</div>
@@ -123,6 +126,73 @@
     <div class="vignette"></div>
   </div>
 
+
+  <script>
+    (function () {
+      function markStatus(text) {
+        const el = document.getElementById('startStatus');
+        if (el) el.textContent = text;
+      }
+
+      function safeStart() {
+        if (window.__yoinadoStarting) return false;
+        window.__yoinadoStarting = true;
+        window.__pendingStartYoinado = true;
+        markStatus('開始処理中...');
+
+        const tryStart = () => {
+          if (typeof window.__startGame === 'function') {
+            markStatus('開始します...');
+            window.__startGame();
+            return true;
+          }
+          return false;
+        };
+
+        if (tryStart()) return false;
+
+        let count = 0;
+        const timer = window.setInterval(() => {
+          count += 1;
+          if (tryStart()) {
+            clearInterval(timer);
+            return;
+          }
+          if (count > 200) {
+            clearInterval(timer);
+            window.__yoinadoStarting = false;
+            markStatus('読み込みに失敗。ページを再読み込みしてください。');
+          }
+        }, 50);
+
+        return false;
+      }
+
+      window.__safeStartYoinado = safeStart;
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const bind = (el, fn) => {
+          if (!el) return;
+          ['click', 'touchend', 'pointerup', 'mouseup'].forEach((name) => {
+            el.addEventListener(name, function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              fn(e);
+            }, { passive: false, capture: true });
+          });
+        };
+
+        const startBtn = document.getElementById('startBtn');
+        const titleInner = document.getElementById('titleInner');
+        bind(startBtn, safeStart);
+        bind(titleInner, function (e) {
+          const t = e.target;
+          if (t && t.closest && (t.closest('#howtoBtn') || t.closest('#continueBtn') || t.closest('#closeHowtoBtn'))) return;
+          safeStart();
+        });
+      });
+    })();
+  </script>
   <script type="module" src="game.js"></script>
 </body>
 </html>

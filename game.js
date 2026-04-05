@@ -34,7 +34,7 @@ const saveBtn = document.getElementById('saveBtn');
 const loadBtn = document.getElementById('loadBtn');
 const restartBtn = document.getElementById('restartBtn');
 
-const STORAGE_KEY = 'yoinado_ps1_save_v7';
+const STORAGE_KEY = 'yoinado_ps1_save_v8';
 const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
@@ -1107,6 +1107,10 @@ window.__startGame = () => {
 };
 
 window.__forceStart = window.__startGame;
+window.__startGameReady = true;
+if (window.__pendingStartYoinado && !state.started) {
+  window.__startGame();
+}
 
 function openHowto() {
   howtoModal?.classList.remove('hidden');

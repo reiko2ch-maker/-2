@@ -292,6 +292,7 @@ canvas#game {
   flex-direction: column;
   justify-content: center;
   gap: 20px;
+  pointer-events: auto;
 }
 
 .title-topline,
@@ -338,6 +339,18 @@ canvas#game {
 .title-menu {
   display: grid;
   gap: 12px;
+}
+
+.title-menu,
+.title-menu-btn,
+.title-start-status {
+  pointer-events: auto;
+}
+
+.title-start-status {
+  min-height: 24px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .title-footer-meta {
