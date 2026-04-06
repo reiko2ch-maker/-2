@@ -5,7 +5,7 @@ if (typeof THREE === 'undefined') {
   return;
 }
 
-const SAVE_PREFIX = 'yoiyado_real3d_a1_v21_slot_';
+const SAVE_PREFIX = 'yoiyado_real3d_a1_v23_slot_';
 const TAU = Math.PI * 2;
 
 const canvas = document.getElementById('game-canvas');
@@ -29,6 +29,7 @@ const slotOverlay = document.getElementById('slot-overlay');
 const slotTitleEl = document.getElementById('slot-title');
 const slotNoteEl = document.getElementById('slot-note');
 const slotListEl = document.getElementById('slot-list');
+const returnHomeEl = document.getElementById('return-home');
 const actBtn = document.getElementById('act-btn');
 const lookZone = document.getElementById('look-zone');
 const joystickBase = document.getElementById('joystick-base');
@@ -107,7 +108,9 @@ const npcs = [];
 const items = [];
 const areaAnchors = {};
 const graph = {
-  lobby: { corridor: 12, kitchen: 8, archive: 9 },
+  home: { town: 12 },
+  town: { home: 12, lobby: 18 },
+  lobby: { town: 18, corridor: 12, kitchen: 8, archive: 9 },
   kitchen: { lobby: 8 },
   corridor: { lobby: 12, room201: 6, bath: 12, north: 13 },
   room201: { corridor: 6 },
@@ -118,17 +121,24 @@ const graph = {
 };
 
 const areaLabels = {
-  lobby: '帳場', kitchen: '厨房', corridor: '客室廊下', room201: '201号室', bath: '浴場前', archive: '宿帳庫', north: '北廊下', detached: '離れ通路'
+  home: '自宅', town: '田舎町', lobby: '帳場', kitchen: '厨房', corridor: '客室廊下', room201: '201号室', bath: '浴場前', archive: '宿帳庫', north: '北廊下', detached: '離れ通路'
 };
 
 const stepDefs = {
+  start_note: { day: 1, phase: '出勤前', text: '机の読み物で今日の予定を確認する', sub: '机へ', targetArea: 'home', targetPos: { x: -1.7, z: -1.8 }, trigger: { type: 'item', id: 'scheduleNote' } },
+  leave_home: { day: 1, phase: '出勤前', text: '玄関から外へ出る', sub: '玄関へ', targetArea: 'home', targetPos: { x: 4.4, z: 1.1 }, trigger: { type: 'door', id: 'homeToTown' } },
+  walk_to_ryokan: { day: 1, phase: '出勤前', text: '田舎町を歩いて旅館へ向かう', sub: '旅館入口へ', targetArea: 'town', targetPos: { x: 11.2, z: 0 }, trigger: { type: 'door', id: 'townToLobby' } },
   talk_okami: { day: 1, phase: '昼勤務', text: '女将に話しかける', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
   get_tray: { day: 1, phase: '昼勤務', text: '厨房でお茶の盆を受け取る', sub: '厨房へ', targetArea: 'kitchen', targetPos: { x: 0, z: -1 }, trigger: { type: 'item', id: 'tray' } },
   deliver_201: { day: 1, phase: '昼勤務', text: '201号室の客にお茶を届ける', sub: '201号室へ', targetArea: 'room201', targetPos: { x: 0, z: -1.8 }, trigger: { type: 'npc', id: 'guest201' } },
   report_okami: { day: 1, phase: '昼勤務', text: '帳場へ戻って女将に報告する', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
-  answer_phone: { day: 1, phase: '夕方', text: '浴場前の黒電話に出る', sub: '浴場前へ', targetArea: 'bath', targetPos: { x: 0, z: -2 }, trigger: { type: 'item', id: 'phone' } },
+  restock_towels: { day: 1, phase: '昼勤務', text: '浴場前の棚に替えタオルを補充する', sub: '浴場前へ', targetArea: 'bath', targetPos: { x: 2.5, z: 2.6 }, trigger: { type: 'item', id: 'towelShelf' } },
+  answer_phone: { day: 1, phase: '夕方', text: '浴場前の黒電話に出る', sub: '浴場前へ', targetArea: 'bath', targetPos: { x: 2.5, z: -2.5 }, trigger: { type: 'item', id: 'phone' } },
   inspect_archive: { day: 1, phase: '深夜調査', text: '宿帳庫で青い宿帳を探す', sub: '宿帳庫へ', targetArea: 'archive', targetPos: { x: 0, z: -3 }, trigger: { type: 'item', id: 'blueLedger' } },
   escape_archive: { day: 1, phase: '深夜追跡', text: '誘導員から逃げて帳場へ戻る', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
+  sleep_day1: { day: 1, phase: '帰宅', text: '布団で眠って体を休める', sub: '布団へ', targetArea: 'home', targetPos: { x: -0.2, z: -0.9 }, trigger: { type: 'item', id: 'futonBed' } },
+  leave_home_day2: { day: 2, phase: '出勤前', text: '玄関から外へ出る', sub: '玄関へ', targetArea: 'home', targetPos: { x: 4.4, z: 1.1 }, trigger: { type: 'door', id: 'homeToTown' } },
+  commute_day2: { day: 2, phase: '出勤前', text: '田舎町を歩いて旅館へ向かう', sub: '旅館入口へ', targetArea: 'town', targetPos: { x: 11.2, z: 0 }, trigger: { type: 'door', id: 'townToLobby' } },
   talk_maid: { day: 2, phase: '昼勤務', text: '廊下で仲居に昨夜のことを聞く', sub: '客室廊下へ', targetArea: 'corridor', targetPos: { x: 0, z: 0 }, trigger: { type: 'npc', id: 'maid' } },
   inspect_north: { day: 2, phase: '夕方', text: '北廊下の閉ざされた札を調べる', sub: '北廊下へ', targetArea: 'north', targetPos: { x: 0, z: -2.5 }, trigger: { type: 'item', id: 'sealTag' } },
   inspect_detached: { day: 2, phase: '深夜調査', text: '離れ通路の祠を調べる', sub: '離れ通路へ', targetArea: 'detached', targetPos: { x: 0, z: -3 }, trigger: { type: 'item', id: 'altar' } },
@@ -137,48 +147,81 @@ const stepDefs = {
 };
 
 const storyNodes = {
+  home_note: [
+    ['主人公', `今日から、山あいの古い旅館で住み込みの仕事が始まる。
+寮ではなく、自宅から数日通うことになった。`, 'hero'],
+    ['主人公', `女将からの手紙。
+「昼前までに帳場へ。北廊下には夜まで近づかないこと」`, 'hero']
+  ],
   okami_intro: [
-    ['女将', 'よう来たね。ここは人手が足りていない。\n今夜から帳場の手伝いをしてもらう。', 'okami'],
-    ['女将', 'まずは厨房へ行って、201号室へお茶の盆を届けておくれ。\n道は短いが、夜は北廊下に近づかないこと。', 'okami']
+    ['女将', `よう来たね。ここは人手が足りていない。
+今夜から帳場の手伝いをしてもらう。`, 'okami'],
+    ['女将', `まずは厨房へ行って、201号室へお茶の盆を届けておくれ。
+そのあと浴場前の替えタオルも補充しておいて。`, 'okami']
   ],
   tray: [
-    ['料理番', '女将さんから聞いてるよ。\n盆を持ったら、こぼさないようにまっすぐ201へ。', 'chef']
+    ['料理番', `女将さんから聞いてるよ。
+盆を持ったら、こぼさないようにまっすぐ201へ。`, 'chef']
   ],
   guest201: [
-    ['201号室の客', '……遅かったな。\n今朝からこの宿、変な音がする。壁の向こうを誰か歩いてる。', 'guest'],
-    ['201号室の客', 'さっきも、赤と白の旗を持った男が廊下の先に立っていた。\n宿の人間なら妙な格好だ。', 'guest']
+    ['201号室の客', `……遅かったな。
+今朝からこの宿、変な音がする。壁の向こうを誰か歩いてる。`, 'guest'],
+    ['201号室の客', `さっきも、赤と白の旗を持った男が廊下の先に立っていた。
+宿の人間なら妙な格好だ。`, 'guest']
   ],
   report_okami: [
-    ['女将', '客の話は気にしなくていい。\n古い建物だから、音はいろいろ響くものさ。', 'okami'],
-    ['女将', '……だが、もし今夜、黒電話が鳴ったら必ず出ておくれ。', 'okami']
+    ['女将', `客の話は気にしなくていい。
+古い建物だから、音はいろいろ響くものさ。`, 'okami'],
+    ['女将', `浴場前の棚が空いている。替えタオルを置いたら、帳場へ戻ってきな。`, 'okami']
+  ],
+  towel: [
+    ['主人公', `替えタオルを棚へ積み直した。
+湿った匂いの中で、遠くから黒電話のベルが一度だけ鳴った。`, 'hero']
   ],
   phone: [
-    ['黒電話', '――……カタン。\n受話器の向こうから、誰かの息だけが聞こえる。', 'phone'],
-    ['黒電話', '低い声', '宿帳を、見るな。……いや、見ろ。\n北の札より先に、帳場の奥を確かめろ。', 'phone']
+    ['黒電話', `――……カタン。
+受話器の向こうから、誰かの息だけが聞こえる。`, 'phone'],
+    ['低い声', `宿帳を、見るな。……いや、見ろ。
+北の札より先に、帳場の奥を確かめろ。`, 'phone']
   ],
   blueLedger: [
-    ['主人公', '青い宿帳だ。\n同じ名前が、年を跨いで何度も記されている。', 'hero'],
-    ['主人公', 'ページの端に、赤いインクで「誘導員に従うな」とある。', 'hero']
+    ['主人公', `青い宿帳だ。
+同じ名前が、年を跨いで何度も記されている。`, 'hero'],
+    ['主人公', `ページの端に、赤いインクで「誘導員に従うな」とある。`, 'hero']
   ],
   escape_archive: [
-    ['女将', '見たのかい。\nそれなら、今夜のうちに帳場へ隠しておくしかない。', 'okami'],
-    ['女将', '明日は、廊下の仲居にだけ話を聞いておくれ。\n他の客には悟られないように。', 'okami']
+    ['女将', `見たのかい。
+それなら、今夜のうちに家へ戻って休みな。`, 'okami'],
+    ['女将', `明日になったら、廊下の仲居にだけ話を聞いておくれ。
+他の客には悟られないように。`, 'okami']
+  ],
+  sleep_day1: [
+    ['主人公', `布団へ倒れこむ。
+提灯の残像と、赤白の旗が瞼の裏に焼きついている。`, 'hero'],
+    ['主人公', `……翌朝。
+またあの旅館へ向かわなければならない。`, 'hero']
   ],
   maid: [
-    ['仲居', '昨夜、帳場の灯りが消えたあと……北廊下の奥で、旗が擦れる音がしました。', 'maid'],
-    ['仲居', '昔の火事で死んだ誘導員の噂、聞いたことありますか。\n道を誤らせる男です。', 'maid']
+    ['仲居', `昨夜、帳場の灯りが消えたあと……北廊下の奥で、旗が擦れる音がしました。`, 'maid'],
+    ['仲居', `昔の火事で死んだ誘導員の噂、聞いたことありますか。
+道を誤らせる男です。`, 'maid']
   ],
   sealTag: [
-    ['主人公', '閉ざされた札の裏に、細い鍵が隠されている。\n札そのものは焦げた匂いがする。', 'hero']
+    ['主人公', `閉ざされた札の裏に、細い鍵が隠されている。
+札そのものは焦げた匂いがする。`, 'hero']
   ],
   altar: [
-    ['主人公', '離れの祠の下に、宿帳の切れ端と写真がある。\n女将と、見覚えのない誘導員の写真だ。', 'hero'],
-    ['主人公', '足音。……また来る。', 'hero']
+    ['主人公', `離れの祠の下に、宿帳の切れ端と写真がある。
+女将と、見覚えのない誘導員の写真だ。`, 'hero'],
+    ['主人公', `足音。……また来る。`, 'hero']
   ],
   finale: [
-    ['女将', 'あれは追う者ではなく、連れていく者だよ。\n昔この宿で、客を避難させるはずだった男さ。', 'okami'],
-    ['女将', '火事の夜、誰も救えなかった。\nだから今も、間違った道へ客を導こうとする。', 'okami'],
-    ['女将', '……宿帳は預かっておく。\n続きは、明日の夜に。', 'okami']
+    ['女将', `あれは追う者ではなく、連れていく者だよ。
+昔この宿で、客を避難させるはずだった男さ。`, 'okami'],
+    ['女将', `火事の夜、誰も救えなかった。
+だから今も、間違った道へ客を導こうとする。`, 'okami'],
+    ['女将', `……宿帳は預かっておく。
+続きは、明日の夜に。`, 'okami']
   ]
 };
 
@@ -484,7 +527,9 @@ function buildArea(areaId){
   state.phaseLabel = stepDefs[state.step].phase;
   scene.fog.color.set(0x080a10);
   scene.fog.near = 16; scene.fog.far = 42;
-  if (areaId === 'lobby') buildLobby();
+  if (areaId === 'home') buildHome();
+  else if (areaId === 'town') buildTown();
+  else if (areaId === 'lobby') buildLobby();
   else if (areaId === 'kitchen') buildKitchen();
   else if (areaId === 'corridor') buildCorridor();
   else if (areaId === 'room201') buildRoom201();
@@ -492,6 +537,53 @@ function buildArea(areaId){
   else if (areaId === 'archive') buildArchive();
   else if (areaId === 'north') buildNorth();
   else if (areaId === 'detached') buildDetached();
+}
+
+
+function buildHome(){
+  const night = state.step === 'sleep_day1';
+  scene.fog.color.set(night ? 0x070910 : 0x0b0d12);
+  scene.fog.near = 14; scene.fog.far = 34;
+  createFloor(10, 8, materials.wood, -0.1);
+  createCeiling(10, 8, night ? 0xd7d2cb : 0xece7dd);
+  wallSegment(0,-3.95,10,3.2,0.14,materials.wallWarm); wallSegment(0,3.95,10,3.2,0.14,materials.wallWarm); wallSegment(-4.95,0,0.14,3.2,8,materials.wallDark); wallSegment(4.95,0,0.14,3.2,8,materials.wallDark);
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.82,0.8), materials.darkWood); desk.position.set(-2.0,0.41,-2.2); desk.castShadow = desk.receiveShadow = true; areaGroup.add(desk); addBoxCollider(-2.0,-2.2,1.8,0.8);
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.8,0.5), materials.darkWood); shelf.position.set(-4.1,0.9,2.8); shelf.castShadow = shelf.receiveShadow = true; areaGroup.add(shelf); addBoxCollider(-4.1,2.8,0.8,0.5);
+  const bag = new THREE.Mesh(new THREE.BoxGeometry(0.54,0.42,0.24), new THREE.MeshStandardMaterial({ color: 0x41474f, roughness: 0.92 })); bag.position.set(-1.8,0.9,-2.05); areaGroup.add(bag);
+  const futon = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.22,2.6), new THREE.MeshStandardMaterial({ color: 0xf0eee8, roughness: 1 })); futon.position.set(0.8,0.02,0.9); areaGroup.add(futon); addBoxCollider(0.8,0.9,2.6,2.6);
+  const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.72,0.16,0.34), materials.paper); pillow.position.set(0.1,0.15,-0.02); areaGroup.add(pillow);
+  const doorMat = new THREE.Mesh(new THREE.BoxGeometry(1.1,0.02,0.8), materials.carpet); doorMat.position.set(4.1,-0.08,1.0); areaGroup.add(doorMat);
+  addLamp(-2.6,-0.4, night ? 0.4 : 0.7); addLamp(2.6,0.2, night ? 0.34 : 0.58);
+  const noteMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42,0.02,0.28), materials.paper); noteMesh.position.y = 0.84;
+  if (state.step === 'start_note') addItem('scheduleNote','手紙',-2.0,-2.2,noteMesh,itemInteract);
+  if (state.step === 'sleep_day1') {
+    const futonTrigger = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.04,2.0), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.01 }));
+    futonTrigger.position.y = 0.05;
+    addItem('futonBed','布団',0.8,0.9,futonTrigger,itemInteract);
+  }
+  addDoor('homeToTown','外へ出る',4.36,1.0,1.1,'town',{x:-10.5,z:0,yaw:-Math.PI/2},'x',0xe7d9be);
+  const homeLabel = makeLabelPlane('自宅', 1.4, 0.42); homeLabel.position.set(0,2.45,-3.84); areaGroup.add(homeLabel);
+}
+
+function buildTown(){
+  scene.fog.color.set(0x11161e);
+  scene.fog.near = 22; scene.fog.far = 48;
+  createFloor(28, 10, materials.tile, -0.1);
+  createCeiling(28, 10, 0xc6d2de);
+  wallSegment(0,-4.95,28,3.2,0.14,materials.wallDark); wallSegment(0,4.95,28,3.2,0.14,materials.wallDark);
+  const lane = new THREE.Mesh(new THREE.BoxGeometry(28,0.02,4.4), new THREE.MeshStandardMaterial({ color: 0x5b636c, roughness: 1 })); lane.position.set(0,-0.08,0); areaGroup.add(lane);
+  const hedge1 = new THREE.Mesh(new THREE.BoxGeometry(6,1.2,1.4), new THREE.MeshStandardMaterial({ color: 0x44553b, roughness: 1 })); hedge1.position.set(-6.0,0.6,-3.7); areaGroup.add(hedge1); addBoxCollider(-6.0,-3.7,6,1.4);
+  const hedge2 = hedge1.clone(); hedge2.position.set(6.8,0.6,3.7); areaGroup.add(hedge2); addBoxCollider(6.8,3.7,6,1.4);
+  const house = new THREE.Mesh(new THREE.BoxGeometry(3.0,2.4,2.2), materials.wallDark); house.position.set(-11.8,1.2,0); areaGroup.add(house); addBoxCollider(-11.8,0,3.0,2.2);
+  const innGate = new THREE.Group();
+  const postL = new THREE.Mesh(new THREE.BoxGeometry(0.28,2.8,0.28), materials.darkWood); postL.position.set(0,1.4,-1.4); innGate.add(postL);
+  const postR = postL.clone(); postR.position.z = 1.4; innGate.add(postR);
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(0.36,0.28,3.2), materials.darkWood); beam.position.set(0,2.72,0); innGate.add(beam);
+  const sign = makeLabelPlane('宵宿', 1.2, 0.42); sign.position.set(0,2.25,0); innGate.add(sign);
+  innGate.position.set(11.2,0,0); innGate.traverse(m=>{ if(m.isMesh){ m.castShadow = true; m.receiveShadow = true; } }); areaGroup.add(innGate);
+  addLamp(-7.8,0,0.44,0xffd39a); addLamp(0,0,0.44,0xffd39a); addLamp(8.6,0,0.44,0xffd39a);
+  addDoor('townToHome','自宅',-12.9,0,1.2,'home',{x:3.4,z:1.0,yaw:Math.PI/2},'x',0xc4c0b5);
+  addDoor('townToLobby','旅館入口',12.85,0,1.2,'lobby',{x:0,z:4.8,yaw:Math.PI},'x',0xc9b07a);
 }
 
 function buildLobby(){
@@ -542,8 +634,8 @@ function buildCorridor(){
   }
   addDoor('corridorToLobby','帳場',-11.34,0,1.2,'lobby',{x:7.1,z:0,yaw:Math.PI},'x');
   addDoor('corridorTo201','201',0,-4.58,1.2,'room201',{x:0,z:4.0,yaw:Math.PI},null,0xf0e7d1);
-  addDoor('corridorToBath','浴場',7.7,4.58,1.2,'bath',{x:-5.6,z:0,yaw:0},null,0xd7ecef);
-  addDoor('corridorToNorth','北廊下',11.34,0,1.2,'north',{x:-6.6,z:0,yaw:0},'x',0xc3b28a);
+  addDoor('corridorToBath','浴場',7.7,4.58,1.2,'bath',{x:-3.6,z:0,yaw:0},null,0xd7ecef);
+  addDoor('corridorToNorth','北廊下',11.34,0,1.2,'north',{x:-3.7,z:0,yaw:0},'x',0xc3b28a);
   const placard = makeLabelPlane('客室廊下', 1.8, 0.45); placard.position.set(-8.4,2.4,-4.6); areaGroup.add(placard);
   addNPC('maid','仲居','maid',0x575a79,4.6,1.2,Math.PI,npcInteract);
 }
@@ -618,9 +710,9 @@ function npcInteract(entity){
     if (state.step === 'talk_okami') {
       showDialogue(storyNodes.okami_intro, () => setStep('get_tray'));
     } else if (state.step === 'report_okami') {
-      showDialogue(storyNodes.report_okami, () => setStep('answer_phone'));
+      showDialogue(storyNodes.report_okami, () => setStep('restock_towels'));
     } else if (state.step === 'escape_archive') {
-      showDialogue(storyNodes.escape_archive, () => setStep('talk_maid'));
+      showDialogue(storyNodes.escape_archive, () => openReturnHome());
     } else if (state.step === 'escape_detached') {
       showDialogue(storyNodes.finale, () => { setStep('finale'); state.ended = true; endingEl.classList.remove('hidden'); saveToSlot(1, true); });
     } else if (state.step === 'finale') {
@@ -636,11 +728,15 @@ function npcInteract(entity){
 }
 
 function itemInteract(entity){
-  if (entity.id === 'tray' && state.step === 'get_tray') {
+  if (entity.id === 'scheduleNote' && state.step === 'start_note') {
+    showDialogue(storyNodes.home_note, () => setStep('leave_home'));
+  } else if (entity.id === 'tray' && state.step === 'get_tray') {
     dynamicGroup.remove(entity.mesh);
     removeItem(entity.id);
     state.questFlags.hasTray = true;
     showDialogue(storyNodes.tray, () => setStep('deliver_201'));
+  } else if (entity.id === 'towelShelf' && state.step === 'restock_towels') {
+    showDialogue(storyNodes.towel, () => setStep('answer_phone'));
   } else if (entity.id === 'phone' && state.step === 'answer_phone') {
     showDialogue(storyNodes.phone, () => setStep('inspect_archive'));
   } else if (entity.id === 'blueLedger' && state.step === 'inspect_archive') {
@@ -653,6 +749,14 @@ function itemInteract(entity){
     });
   } else if (entity.id === 'sealTag' && state.step === 'inspect_north') {
     showDialogue(storyNodes.sealTag, () => setStep('inspect_detached'));
+  } else if (entity.id === 'futonBed' && state.step === 'sleep_day1') {
+    showDialogue(storyNodes.sleep_day1, () => {
+      state.area = 'home';
+      buildArea(state.area);
+      player.x = 3.2; player.z = 1.0; player.yaw = Math.PI / 2; player.pitch = 0;
+      resetInput();
+      setStep('leave_home_day2');
+    });
   } else if (entity.id === 'altar' && state.step === 'inspect_detached') {
     showDialogue(storyNodes.altar, () => {
       startChase('detached', { x: 0, z: 0 }, 'escape_detached');
@@ -736,6 +840,22 @@ function startChase(areaId, guidePos, linkedStep){
 function stopChase(){
   state.chase = null;
   if (state.guide) { dynamicGroup.remove(state.guide.group); state.guide = null; }
+}
+function openReturnHome(){
+  state.menuOpen = true;
+  resetInput();
+  returnHomeEl.classList.remove('hidden');
+}
+function goHomeNow(){
+  returnHomeEl.classList.add('hidden');
+  state.menuOpen = false;
+  state.area = 'home';
+  buildArea(state.area);
+  player.x = 2.4; player.z = 1.4; player.yaw = Math.PI / 2; player.pitch = 0;
+  resetInput();
+  state.inputLockUntil = performance.now() + 500;
+  state.doorCooldownUntil = performance.now() + 900;
+  setStep('sleep_day1');
 }
 function spawnGuide(x,z){
   if (state.guide) dynamicGroup.remove(state.guide.group);
@@ -821,6 +941,10 @@ function useDoor(door){
   const now = performance.now();
   if (now < state.doorCooldownUntil || now < state.inputLockUntil) return;
   if (state.lastDoorId === door.id) return;
+  if (state.step === 'start_note' && door.id === 'homeToTown') {
+    showDialogue([['主人公', '机の手紙を確認してから出よう。', 'hero']], ()=>{});
+    return;
+  }
   const leavingArea = state.area;
   const chaseSucceeded = !!(state.chase && ((state.step === 'escape_archive' && leavingArea === 'archive' && door.toArea !== 'archive') || (state.step === 'escape_detached' && leavingArea === 'detached' && door.toArea !== 'detached')));
   state.lastDoorId = door.id;
@@ -832,6 +956,7 @@ function useDoor(door){
     state.checkpoint = null;
     gameOverEl.classList.add('hidden');
   }
+  returnHomeEl.classList.add('hidden');
   state.area = door.toArea;
   buildArea(state.area);
   player.x = door.toSpawn.x;
@@ -839,10 +964,17 @@ function useDoor(door){
   player.yaw = door.toSpawn.yaw || 0;
   player.pitch = 0;
   if (chaseSucceeded) {
-    if (state.step === 'escape_archive') setStep('talk_maid');
-    else if (state.step === 'escape_detached') setStep('finale');
+    if (state.step === 'escape_archive') {
+      openReturnHome();
+      return;
+    } else if (state.step === 'escape_detached') setStep('finale');
   }
+  if (door.id === 'homeToTown' && state.step === 'leave_home') setStep('walk_to_ryokan');
+  else if (door.id === 'townToLobby' && state.step === 'walk_to_ryokan') setStep('talk_okami');
+  else if (door.id === 'homeToTown' && state.step === 'leave_home_day2') setStep('commute_day2');
+  else if (door.id === 'townToLobby' && state.step === 'commute_day2') setStep('talk_maid');
 }
+
 
 function updatePrompt(){
   const now = performance.now();
@@ -890,7 +1022,7 @@ function updateMinimap(){
   roundRect(minimapCtx, 0,0,minimap.width,minimap.height,22); minimapCtx.fill();
   minimapCtx.fillStyle = '#a79b84'; minimapCtx.font = '12px sans-serif'; minimapCtx.fillText('館内導線', 14, 18);
   const nodes = {
-    lobby:[40,50], kitchen:[40,88], corridor:[105,50], room201:[164,28], bath:[200,28], archive:[105,88], north:[164,88], detached:[200,88]
+    home:[22,30], town:[68,30], lobby:[118,30], kitchen:[118,72], corridor:[168,30], room201:[208,14], bath:[244,14], archive:[168,72], north:[208,72], detached:[244,72]
   };
   minimapCtx.strokeStyle='rgba(255,255,255,.14)'; minimapCtx.lineWidth=2;
   Object.keys(graph).forEach(k=>{ Object.keys(graph[k]).forEach(to=>{ if(k<to){ const a=nodes[k], b=nodes[to]; minimapCtx.beginPath(); minimapCtx.moveTo(a[0],a[1]); minimapCtx.lineTo(b[0],b[1]); minimapCtx.stroke(); } }); });
@@ -1032,6 +1164,7 @@ function loadFromSlot(slot, silent){
     stopChase();
     gameOverEl.classList.add('hidden');
     endingEl.classList.add('hidden');
+    returnHomeEl.classList.add('hidden');
     state.menuOpen = false;
     menuOverlay.classList.add('hidden');
     if (slotOverlay) slotOverlay.classList.add('hidden');
@@ -1139,6 +1272,9 @@ function setupControls(){
     else if (state.slotMode === 'load') { loadFromSlot(slot, false); closeSlotOverlay(); }
   });
   endingEl.addEventListener('click', function(e){ if (e.target.closest('button')) location.href = 'index.html'; });
+  returnHomeEl.addEventListener('click', function(e){
+    if (e.target === returnHomeEl || e.target.closest('[data-return-home]')) goHomeNow();
+  });
 
   joystickZone.addEventListener('pointerdown', startJoy);
   window.addEventListener('pointermove', moveJoy);
@@ -1192,10 +1328,10 @@ function onResize(){ renderer.setSize(window.innerWidth, window.innerHeight, fal
 
 
 function beginNewGame(){
-  state.area = 'lobby';
+  state.area = 'home';
   state.day = 1;
   state.phaseLabel = '昼勤務';
-  state.step = 'talk_okami';
+  state.step = 'start_note';
   state.hudHidden = false;
   state.menuOpen = false;
   state.dialogueQueue = [];
@@ -1210,13 +1346,14 @@ function beginNewGame(){
   state.ended = false;
   gameOverEl.classList.add('hidden');
   endingEl.classList.add('hidden');
+  returnHomeEl.classList.add('hidden');
   dialogueOverlay.classList.add('hidden');
   menuOverlay.classList.add('hidden');
   stopChase();
-  buildArea('lobby');
-  player.x = 0; player.z = 2.8; player.yaw = Math.PI; player.pitch = 0;
+  buildArea('home');
+  player.x = 2.6; player.z = 1.4; player.yaw = Math.PI / 2; player.pitch = 0;
   resetInput();
-  setStep('talk_okami');
+  setStep('start_note');
 }
 
 function init(){

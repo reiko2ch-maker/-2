@@ -53,7 +53,7 @@ body{overscroll-behavior:none;}
 .objective-sub{margin-top:6px; color:#cbc0a7;}
 .prompt{position:absolute; left:50%; bottom:calc(var(--safe-bottom) + 30px); transform:translateX(-50%); min-width:220px; padding:12px 20px; border-radius:999px; text-align:center; font-weight:700; opacity:0; transition:.18s ease;}
 .prompt.show{opacity:1;}
-#minimap{position:absolute; top:calc(var(--safe-top) + 86px); right:calc(var(--safe-right) + 14px); width:220px; height:130px; border-radius:22px; padding:0;}
+#minimap{position:absolute; top:calc(var(--safe-top) + 86px); right:calc(var(--safe-right) + 14px); width:270px; height:150px; border-radius:22px; padding:0;}
 .joystick-zone{position:absolute; z-index:3; left:calc(var(--safe-left) + 18px); bottom:calc(var(--safe-bottom) + 18px); width:150px; height:150px; pointer-events:auto; touch-action:none;}
 .move-label{position:absolute; left:14px; top:10px; color:rgba(203,195,178,.62); font-size:12px; letter-spacing:.18em;}
 .joystick-base{position:absolute; inset:0; border-radius:28px; display:grid; place-items:center; background:rgba(6,8,15,.28); border:1px solid rgba(177,162,122,.14); box-shadow:0 10px 22px rgba(0,0,0,.14);} 

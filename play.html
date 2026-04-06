@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>宵宿 A-1 Real3D Test v20</title>
+  <title>宵宿 A-1 Real3D Test v23</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="play-body">
@@ -22,7 +22,7 @@
         <button id="menu-btn" class="menu-btn">MENU</button>
       </div>
             <div class="prompt" id="prompt">E / ACT : 調べる</div>
-      <canvas id="minimap" width="220" height="130"></canvas>
+      <canvas id="minimap" width="270" height="150"></canvas>
     </div>
 
     <div id="joystick-zone" class="joystick-zone">
@@ -72,10 +72,19 @@
       </div>
     </div>
 
+
+
+    <div id="return-home" class="overlay hidden">
+      <div class="menu-card gameover-card">
+        <h2>本日の勤務終了</h2>
+        <p>深夜の見回りを終えた。いったん自宅へ戻って休む。</p>
+        <button data-return-home="1">帰宅する</button>
+      </div>
+    </div>
     <div id="ending" class="overlay hidden">
       <div class="menu-card ending-card">
-        <h2>第一章・終了</h2>
-        <p>離れ通路で見つけた古い宿帳には、同じ名前が何度も記されていた。<br>女将はまだ何かを隠している。</p>
+        <h2>第二夜・終了</h2>
+        <p>自宅から始まった二日間の勤務で、旅館の異変は日常にまで滲み出した。<br>続きは次章へ。</p>
         <button data-end="title">タイトルへ戻る</button>
       </div>
     </div>

@@ -10,14 +10,14 @@
   <div class="crt"></div>
   <main class="title-shell">
     <div class="title-card">
-      <p class="eyebrow">A / GitHubで動く実3D試験版</p>
+      <p class="eyebrow">A / GitHubで動く実3D試験版・自宅導入追加</p>
       <h1>宵宿</h1>
       <p class="roman">YOIYADO</p>
-      <p class="lead">帳場、客室廊下、厨房、浴場前、宿帳庫、離れ通路を巡り、<br>仕事をしながら旅館の不可解な事件を追う一人称ホラー。</p>
+      <p class="lead">自宅の部屋から始まり、田舎町を歩いて旅館へ出勤する。<br>昼は仕事、夜は見回り、勤務後は自宅へ戻って眠る一人称ホラー。</p>
       <ul class="feature-list">
-        <li>実3Dの立体キャラクター</li>
-        <li>ACTでのみ扉遷移。追跡は出口を抜けたら終了</li>
-        <li>右上に目的地までの距離表示</li>
+        <li>自宅 → 田舎町 → 旅館の導入パートを追加</li>
+        <li>勤務後に帰宅し、布団で眠ると翌朝へ進行</li>
+        <li>浴場前のタオル補充など昼の作業パートを増量</li>
         <li>3スロット SAVE / LOAD</li>
       </ul>
       <div class="title-actions">
@@ -26,7 +26,7 @@
         <button class="sub-btn" id="wipe-save">全スロット削除</button>
       </div>
       <p class="hint">PC: WASD / マウスドラッグ / E / ESC<br>スマホ: 左スティック移動 / 右半分ドラッグ視点 / ACT</p>
-      <p class="version">A-1 / Real3D GitHub Trial v21</p>
+      <p class="version">A-1 / Real3D GitHub Trial v23</p>
     </div>
   </main>
 
@@ -41,7 +41,7 @@
 
   <script>
     (function(){
-      const SAVE_PREFIX = 'yoiyado_real3d_a1_v21_slot_';
+      const SAVE_PREFIX = 'yoiyado_real3d_a1_v23_slot_';
       const overlay = document.getElementById('title-slot-overlay');
       const list = document.getElementById('title-slot-list');
       const openBtn = document.getElementById('open-title-load');
@@ -51,7 +51,7 @@
       function slotKey(n){ return SAVE_PREFIX + n; }
       function escapeHtml(str){ return String(str).replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
       function renderSlots(){
-        const labels = { talk_okami:'女将へ', get_tray:'厨房へ', deliver_201:'201号室へ', report_okami:'帳場へ戻る', answer_phone:'浴場前へ', inspect_archive:'宿帳庫へ', escape_archive:'帳場へ逃げる', talk_maid:'仲居へ', inspect_north:'北廊下へ', inspect_detached:'離れ通路へ', escape_detached:'帳場へ逃げる', finale:'女将へ' };
+        const labels = { start_note:'机へ', leave_home:'玄関へ', walk_to_ryokan:'旅館入口へ', talk_okami:'女将へ', get_tray:'厨房へ', deliver_201:'201号室へ', report_okami:'帳場へ戻る', restock_towels:'浴場前へ', answer_phone:'浴場前へ', inspect_archive:'宿帳庫へ', escape_archive:'帳場へ逃げる', sleep_day1:'布団へ', leave_home_day2:'玄関へ', commute_day2:'旅館入口へ', talk_maid:'仲居へ', inspect_north:'北廊下へ', inspect_detached:'離れ通路へ', escape_detached:'帳場へ逃げる', finale:'女将へ' };
         list.innerHTML = '';
         for (let i=1;i<=3;i++){
           const raw = localStorage.getItem(slotKey(i));
