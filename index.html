@@ -16,23 +16,77 @@
       <p class="lead">帳場、客室廊下、厨房、浴場前、宿帳庫、離れ通路を巡り、<br>仕事をしながら旅館の不可解な事件を追う一人称ホラー。</p>
       <ul class="feature-list">
         <li>実3Dの立体キャラクター</li>
-        <li>ACTでのみ扉遷移。追跡リトライと新規開始も修正</li>
+        <li>ACTでのみ扉遷移。追跡は出口を抜けたら終了</li>
         <li>右上に目的地までの距離表示</li>
-        <li>MENUから SAVE / LOAD / HUD ON-OFF</li>
+        <li>3スロット SAVE / LOAD</li>
       </ul>
       <div class="title-actions">
         <a class="main-btn" href="play.html?new=1">はじめから</a>
-        <button class="sub-btn" id="wipe-save">セーブを消す</button>
+        <button class="sub-btn" id="open-title-load">LOAD</button>
+        <button class="sub-btn" id="wipe-save">全スロット削除</button>
       </div>
       <p class="hint">PC: WASD / マウスドラッグ / E / ESC<br>スマホ: 左スティック移動 / 右半分ドラッグ視点 / ACT</p>
-      <p class="version">A-1 / Real3D GitHub Trial v20</p>
+      <p class="version">A-1 / Real3D GitHub Trial v21</p>
     </div>
   </main>
+
+  <div id="title-slot-overlay" class="overlay hidden title-slot-overlay">
+    <div class="menu-card slot-card">
+      <h2>LOAD</h2>
+      <p class="slot-note">読み込むセーブデータを選んでください。</p>
+      <div id="title-slot-list" class="slot-list"></div>
+      <button id="close-title-load">閉じる</button>
+    </div>
+  </div>
+
   <script>
-    document.getElementById('wipe-save').addEventListener('click', function(){
-      localStorage.removeItem('yoiyado_real3d_a1_v20');
-      alert('セーブを削除しました');
-    });
+    (function(){
+      const SAVE_PREFIX = 'yoiyado_real3d_a1_v21_slot_';
+      const overlay = document.getElementById('title-slot-overlay');
+      const list = document.getElementById('title-slot-list');
+      const openBtn = document.getElementById('open-title-load');
+      const closeBtn = document.getElementById('close-title-load');
+      const wipeBtn = document.getElementById('wipe-save');
+
+      function slotKey(n){ return SAVE_PREFIX + n; }
+      function escapeHtml(str){ return String(str).replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
+      function renderSlots(){
+        const labels = { talk_okami:'女将へ', get_tray:'厨房へ', deliver_201:'201号室へ', report_okami:'帳場へ戻る', answer_phone:'浴場前へ', inspect_archive:'宿帳庫へ', escape_archive:'帳場へ逃げる', talk_maid:'仲居へ', inspect_north:'北廊下へ', inspect_detached:'離れ通路へ', escape_detached:'帳場へ逃げる', finale:'女将へ' };
+        list.innerHTML = '';
+        for (let i=1;i<=3;i++){
+          const raw = localStorage.getItem(slotKey(i));
+          const wrap = document.createElement('div');
+          wrap.className = 'slot-row';
+          const btn = document.createElement('button');
+          btn.className = 'slot-btn';
+          if(raw){
+            try{
+              const data = JSON.parse(raw);
+              const area = data.areaLabel || data.area || '不明';
+              const objective = labels[data.step] || data.step || '進行中';
+              btn.innerHTML = '<strong>SLOT ' + i + '</strong><span>' + escapeHtml(area) + ' / ' + escapeHtml(objective) + '</span>';
+              btn.addEventListener('click', ()=>{ location.href = 'play.html?slot=' + i; });
+            }catch(e){
+              btn.innerHTML = '<strong>SLOT ' + i + '</strong><span>読込失敗</span>';
+              btn.disabled = true;
+            }
+          }else{
+            btn.innerHTML = '<strong>SLOT ' + i + '</strong><span>空き</span>';
+            btn.disabled = true;
+          }
+          wrap.appendChild(btn);
+          list.appendChild(wrap);
+        }
+      }
+      openBtn.addEventListener('click', function(){ renderSlots(); overlay.classList.remove('hidden'); });
+      closeBtn.addEventListener('click', function(){ overlay.classList.add('hidden'); });
+      overlay.addEventListener('click', function(e){ if(e.target === overlay) overlay.classList.add('hidden'); });
+      wipeBtn.addEventListener('click', function(){
+        for(let i=1;i<=3;i++) localStorage.removeItem(slotKey(i));
+        alert('3つのセーブスロットを削除しました');
+        renderSlots();
+      });
+    })();
   </script>
 </body>
 </html>

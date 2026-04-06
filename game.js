@@ -5,14 +5,12 @@ if (typeof THREE === 'undefined') {
   return;
 }
 
-const SAVE_KEY = 'yoiyado_real3d_a1_v20';
+const SAVE_PREFIX = 'yoiyado_real3d_a1_v21_slot_';
 const TAU = Math.PI * 2;
 
 const canvas = document.getElementById('game-canvas');
 const hud = document.getElementById('hud');
 const promptEl = document.getElementById('prompt');
-const objectiveTextEl = document.getElementById('objective-text');
-const objectiveSubEl = document.getElementById('objective-sub');
 const areaLabelEl = document.getElementById('area-label');
 const phaseLabelEl = document.getElementById('phase-label');
 const dayLabelEl = document.getElementById('day-label');
@@ -27,6 +25,10 @@ const dialogueNameEl = document.getElementById('dialogue-name');
 const dialogueTextEl = document.getElementById('dialogue-text');
 const gameOverEl = document.getElementById('gameover');
 const endingEl = document.getElementById('ending');
+const slotOverlay = document.getElementById('slot-overlay');
+const slotTitleEl = document.getElementById('slot-title');
+const slotNoteEl = document.getElementById('slot-note');
+const slotListEl = document.getElementById('slot-list');
 const actBtn = document.getElementById('act-btn');
 const lookZone = document.getElementById('look-zone');
 const joystickBase = document.getElementById('joystick-base');
@@ -77,6 +79,7 @@ const state = {
   dialogueQueue: [],
   checkpoint: null,
   chase: null,
+  slotMode: null,
   guide: null,
   lastDoorId: null,
   doorCooldownUntil: 0,
@@ -619,9 +622,9 @@ function npcInteract(entity){
     } else if (state.step === 'escape_archive') {
       showDialogue(storyNodes.escape_archive, () => setStep('talk_maid'));
     } else if (state.step === 'escape_detached') {
-      showDialogue(storyNodes.finale, () => { setStep('finale'); state.ended = true; endingEl.classList.remove('hidden'); saveGame(); });
+      showDialogue(storyNodes.finale, () => { setStep('finale'); state.ended = true; endingEl.classList.remove('hidden'); saveToSlot(1, true); });
     } else if (state.step === 'finale') {
-      showDialogue(storyNodes.finale, () => { endingEl.classList.remove('hidden'); saveGame(); });
+      showDialogue(storyNodes.finale, () => { endingEl.classList.remove('hidden'); saveToSlot(1, true); });
     }
   } else if (entity.id === 'guest201' && state.step === 'deliver_201') {
     showDialogue(storyNodes.guest201, () => setStep('report_okami'));
@@ -705,9 +708,7 @@ function setStep(id){
   const def = currentStep();
   dayLabelEl.textContent = 'DAY ' + def.day;
   phaseLabelEl.textContent = def.phase;
-  if (objectiveTextEl) objectiveTextEl.textContent = def.text;
-  if (objectiveSubEl) objectiveSubEl.textContent = def.sub;
-  saveGame();
+  saveToSlot(1, true);
 }
 
 function getChaseCheckpoint(areaId, linkedStep){
@@ -820,18 +821,24 @@ function useDoor(door){
   const now = performance.now();
   if (now < state.doorCooldownUntil || now < state.inputLockUntil) return;
   if (state.lastDoorId === door.id) return;
+  const leavingArea = state.area;
+  const chaseSucceeded = !!(state.chase && ((state.step === 'escape_archive' && leavingArea === 'archive' && door.toArea !== 'archive') || (state.step === 'escape_detached' && leavingArea === 'detached' && door.toArea !== 'detached')));
   state.lastDoorId = door.id;
   state.doorCooldownUntil = now + 1600;
   state.inputLockUntil = now + 950;
   resetInput();
+  if (chaseSucceeded) {
+    stopChase();
+    state.checkpoint = null;
+    gameOverEl.classList.add('hidden');
+  }
   state.area = door.toArea;
   buildArea(state.area);
   player.x = door.toSpawn.x;
   player.z = door.toSpawn.z;
   player.yaw = door.toSpawn.yaw || 0;
   player.pitch = 0;
-  if (state.chase && state.area === 'lobby') {
-    stopChase();
+  if (chaseSucceeded) {
     if (state.step === 'escape_archive') setStep('talk_maid');
     else if (state.step === 'escape_detached') setStep('finale');
   }
@@ -851,8 +858,6 @@ function updatePrompt(){
 
 function updateObjectiveDistance(){
   const def = currentStep();
-  if (objectiveTextEl) objectiveTextEl.textContent = def.text;
-  if (objectiveSubEl) objectiveSubEl.textContent = def.sub;
   const approx = calculateDistanceToObjective();
   distanceLabelEl.textContent = def.sub + ' 約' + Math.max(1, Math.round(approx)) + 'm';
 }
@@ -989,9 +994,11 @@ function animate(now){
   requestAnimationFrame(animate);
 }
 
-function saveGame(){
-  const data = {
+function slotKey(slot){ return SAVE_PREFIX + String(slot); }
+function serializeState(){
+  return {
     area: state.area,
+    areaLabel: areaLabels[state.area] || state.area,
     step: state.step,
     x: player.x,
     z: player.z,
@@ -1000,15 +1007,34 @@ function saveGame(){
     hudHidden: state.hudHidden,
     questFlags: state.questFlags,
     ended: state.ended,
-    checkpoint: state.checkpoint
+    checkpoint: state.checkpoint,
+    chaseStep: state.chase ? state.step : null
   };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
 }
-function loadGame(){
-  const raw = localStorage.getItem(SAVE_KEY);
-  if (!raw) return false;
+function saveToSlot(slot, silent){
+  const data = serializeState();
+  if (state.chase && state.checkpoint) {
+    data.area = state.checkpoint.area;
+    data.areaLabel = areaLabels[data.area] || data.area;
+    data.x = state.checkpoint.x;
+    data.z = state.checkpoint.z;
+    data.yaw = state.checkpoint.yaw;
+    data.pitch = 0;
+  }
+  localStorage.setItem(slotKey(slot), JSON.stringify(data));
+  if (!silent) window.alert('SLOT ' + slot + ' に保存しました');
+}
+function loadFromSlot(slot, silent){
+  const raw = localStorage.getItem(slotKey(slot));
+  if (!raw) { if (!silent) window.alert('SLOT ' + slot + ' は空です'); return false; }
   try {
     const data = JSON.parse(raw);
+    stopChase();
+    gameOverEl.classList.add('hidden');
+    endingEl.classList.add('hidden');
+    state.menuOpen = false;
+    menuOverlay.classList.add('hidden');
+    if (slotOverlay) slotOverlay.classList.add('hidden');
     state.area = data.area || 'lobby';
     state.step = data.step || 'talk_okami';
     state.hudHidden = !!data.hudHidden;
@@ -1020,14 +1046,58 @@ function loadGame(){
     player.z = typeof data.z === 'number' ? data.z : 0;
     player.yaw = typeof data.yaw === 'number' ? data.yaw : 0;
     player.pitch = typeof data.pitch === 'number' ? data.pitch : 0;
-    if (state.step === 'escape_archive') { const gs=(state.checkpoint&&state.checkpoint.guideSpawn)||{x:-3.4,z:-1.4}; state.chase={active:true,speed:2.35,graceUntil:performance.now()+2200}; spawnGuide(gs.x,gs.z); }
-    if (state.step === 'escape_detached') { const gs=(state.checkpoint&&state.checkpoint.guideSpawn)||{x:0,z:-2.8}; state.chase={active:true,speed:2.35,graceUntil:performance.now()+2200}; spawnGuide(gs.x,gs.z); }
+    resetInput();
+    state.inputLockUntil = performance.now() + 400;
+    state.doorCooldownUntil = performance.now() + 600;
+    if (data.chaseStep === 'escape_archive' && state.checkpoint) {
+      state.step = 'escape_archive';
+      const gs=(state.checkpoint.guideSpawn)||{x:-3.4,z:-1.4};
+      state.chase={active:true,speed:2.35,graceUntil:performance.now()+2400};
+      spawnGuide(gs.x,gs.z);
+    } else if (data.chaseStep === 'escape_detached' && state.checkpoint) {
+      state.step = 'escape_detached';
+      const gs=(state.checkpoint.guideSpawn)||{x:0,z:-2.8};
+      state.chase={active:true,speed:2.35,graceUntil:performance.now()+2400};
+      spawnGuide(gs.x,gs.z);
+    }
     if (state.ended) endingEl.classList.remove('hidden');
+    setStep(state.step);
+    if (!silent) window.alert('SLOT ' + slot + ' を読み込みました');
     return true;
   } catch (e) {
     console.error(e);
+    if (!silent) window.alert('SLOT ' + slot + ' の読み込みに失敗しました');
     return false;
   }
+}
+function slotSummary(slot){
+  const raw = localStorage.getItem(slotKey(slot));
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+function openSlotOverlay(mode){
+  state.slotMode = mode;
+  slotTitleEl.textContent = mode === 'save' ? 'SAVE' : 'LOAD';
+  slotNoteEl.textContent = mode === 'save' ? '保存先のスロットを選んでください。' : '読み込むスロットを選んでください。';
+  slotListEl.innerHTML = '';
+  for (let i=1;i<=3;i++) {
+    const data = slotSummary(i);
+    const btn = document.createElement('button');
+    btn.className = 'slot-btn';
+    if (data) {
+      const label = (data.areaLabel || areaLabels[data.area] || data.area || '不明') + ' / ' + ((stepDefs[data.step] && stepDefs[data.step].sub) || data.step || '進行中');
+      btn.innerHTML = '<strong>SLOT ' + i + '</strong><span>' + label + '</span>';
+    } else {
+      btn.innerHTML = '<strong>SLOT ' + i + '</strong><span>空き</span>';
+    }
+    btn.dataset.slot = String(i);
+    slotListEl.appendChild(btn);
+  }
+  slotOverlay.classList.remove('hidden');
+}
+function closeSlotOverlay(){
+  state.slotMode = null;
+  slotOverlay.classList.add('hidden');
 }
 
 function resetInput(){
@@ -1048,15 +1118,25 @@ function setupControls(){
     const btn = e.target.closest('button'); if (!btn) return;
     const act = btn.dataset.action;
     if (act === 'close') toggleMenu(false);
-    else if (act === 'save') { saveGame(); toggleMenu(false); }
-    else if (act === 'load') { loadGame(); toggleMenu(false); }
-    else if (act === 'hud') { state.hudHidden = !state.hudHidden; toggleMenu(false); saveGame(); }
-    else if (act === 'title') { location.href = 'index.html'; }
+    else if (act === 'save') { toggleMenu(false); openSlotOverlay('save'); }
+    else if (act === 'load') { toggleMenu(false); openSlotOverlay('load'); }
+    else if (act === 'hud') { state.hudHidden = !state.hudHidden; toggleMenu(false); saveToSlot(1, true); }
+    else if (act === 'title') { stopChase(); gameOverEl.classList.add('hidden'); location.href = 'index.html'; }
   });
   gameOverEl.addEventListener('click', function(e){
     const btn = e.target.closest('button'); if (!btn) return;
     if (btn.dataset.go === 'retry') { gameOverEl.classList.add('hidden'); retryFromCheckpoint(); }
     else location.href = 'index.html';
+  });
+  slotOverlay.addEventListener('click', function(e){
+    const closeBtn = e.target.closest('[data-slot-close]');
+    if (closeBtn || e.target === slotOverlay) { closeSlotOverlay(); return; }
+    const btn = e.target.closest('[data-slot]');
+    if (!btn) return;
+    const slot = Number(btn.dataset.slot || '0');
+    if (!slot) return;
+    if (state.slotMode === 'save') { saveToSlot(slot, false); closeSlotOverlay(); }
+    else if (state.slotMode === 'load') { loadFromSlot(slot, false); closeSlotOverlay(); }
   });
   endingEl.addEventListener('click', function(e){ if (e.target.closest('button')) location.href = 'index.html'; });
 
@@ -1112,7 +1192,6 @@ function onResize(){ renderer.setSize(window.innerWidth, window.innerHeight, fal
 
 
 function beginNewGame(){
-  localStorage.removeItem(SAVE_KEY);
   state.area = 'lobby';
   state.day = 1;
   state.phaseLabel = '昼勤務';
@@ -1123,6 +1202,7 @@ function beginNewGame(){
   state.checkpoint = null;
   state.chase = null;
   state.guide = null;
+  state.slotMode = null;
   state.lastDoorId = null;
   state.doorCooldownUntil = 0;
   state.inputLockUntil = 0;
@@ -1142,12 +1222,16 @@ function beginNewGame(){
 function init(){
   setupControls();
   const params = new URLSearchParams(location.search);
+  const slotParam = Number(params.get('slot') || '0');
   if (params.get('new') === '1') {
     beginNewGame();
     history.replaceState(null, '', 'play.html');
-  } else {
-    const ok = loadGame();
+  } else if (slotParam >= 1 && slotParam <= 3) {
+    const ok = loadFromSlot(slotParam, true);
     if (!ok) beginNewGame();
+    history.replaceState(null, '', 'play.html');
+  } else {
+    beginNewGame();
   }
   requestAnimationFrame(animate);
 }
