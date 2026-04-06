@@ -5,7 +5,7 @@ if (typeof THREE === 'undefined') {
   return;
 }
 
-const SAVE_PREFIX = 'yoiyado_real3d_a1_v23_slot_';
+const SAVE_PREFIX = 'yoiyado_real3d_a1_v24_slot_';
 const TAU = Math.PI * 2;
 
 const canvas = document.getElementById('game-canvas');
@@ -184,6 +184,12 @@ const storyNodes = {
     ['低い声', `宿帳を、見るな。……いや、見ろ。
 北の札より先に、帳場の奥を確かめろ。`, 'phone']
   ],
+  villager: [
+    ['町の住民', `あの旅館に行くのかい。朝は静かでいい宿に見えるだろう。
+でも夜になると、北側の窓だけ誰もいないのに明かりが点くんだ。`, 'villager'],
+    ['町の住民', `赤と白の旗を振る誘導員の噂、聞いたことはないか。
+火事の夜からずっと、道を間違えた人を連れていくって話さ。`, 'villager']
+  ],
   blueLedger: [
     ['主人公', `青い宿帳だ。
 同じ名前が、年を跨いで何度も記されている。`, 'hero'],
@@ -231,6 +237,7 @@ const faceTextures = {
   guest: makeFaceTexture('#e8d0bc', '#16191d', '#4d4d4d', 'guest'),
   guide: makeFaceTexture('#d5dce5', '#4b0d0d', '#98a4b4', 'guide'),
   chef: makeFaceTexture('#ebdccb', '#1a1a1a', '#ffffff', 'chef'),
+  villager: makeFaceTexture('#e4ccb6', '#1d1f22', '#6c7d52', 'villager'),
   hero: makeFaceTexture('#e7d0bc', '#1d1d1d', '#303030', 'hero'),
   phone: makeFaceTexture('#0f1216', '#d7d7d7', '#0f1216', 'phone')
 };
@@ -268,6 +275,10 @@ function makeFaceTexture(skin, eye, accent, type) {
     g.fillRect(58, 18, 140, 30);
     g.fillStyle = '#ffffff';
     g.fillRect(74, 0, 108, 34);
+  } else if (type === 'villager') {
+    g.fillRect(30, 28, 196, 40);
+    g.fillStyle = '#d7c2a4';
+    g.fillRect(96, 176, 64, 12);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -281,6 +292,9 @@ const materials = {
   tatami: new THREE.MeshStandardMaterial({ map: makeTatamiTexture(512, 512), roughness: 1 }),
   tile: new THREE.MeshStandardMaterial({ map: makeTileTexture(512, 512), roughness: 0.95 }),
   carpet: new THREE.MeshStandardMaterial({ map: makeCarpetTexture(512, 512), roughness: 1 }),
+  grass: new THREE.MeshStandardMaterial({ color: 0x6e9660, roughness: 1 }),
+  bark: new THREE.MeshStandardMaterial({ color: 0x5a402f, roughness: 1 }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x3f6b40, roughness: 1 }),
   wallWarm: new THREE.MeshStandardMaterial({ color: 0xdac7a2, roughness: 1 }),
   wallRose: new THREE.MeshStandardMaterial({ color: 0xb78587, roughness: 1 }),
   wallDark: new THREE.MeshStandardMaterial({ color: 0x3a2d23, roughness: 1 }),
@@ -518,6 +532,20 @@ function addDoor(id, label, x, z, radius, toArea, toSpawn, axis, color){
   doors.push({ id, label, x, z, radius: radius || 1.18, toArea, toSpawn });
 }
 
+function addTree(x, z, scale){
+  const s = scale || 1;
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14*s, 0.18*s, 1.4*s, 10), materials.bark);
+  trunk.position.y = 0.7*s; trunk.castShadow = true; trunk.receiveShadow = true; g.add(trunk);
+  const crown1 = new THREE.Mesh(new THREE.SphereGeometry(0.72*s, 14, 12), materials.leaf);
+  crown1.position.set(0, 1.7*s, 0); crown1.castShadow = true; crown1.receiveShadow = true; g.add(crown1);
+  const crown2 = new THREE.Mesh(new THREE.SphereGeometry(0.56*s, 14, 12), materials.leaf);
+  crown2.position.set(0.3*s, 2.0*s, 0.15*s); crown2.castShadow = true; crown2.receiveShadow = true; g.add(crown2);
+  g.position.set(x, 0, z);
+  areaGroup.add(g);
+  addBoxCollider(x, z, 0.9*s, 0.9*s);
+}
+
 function buildArea(areaId){
   areaGroup.clear(); dynamicGroup.clear(); clearArray(colliders); clearArray(doors); clearArray(npcs); clearArray(items);
   areaLabelEl.textContent = areaLabels[areaId];
@@ -525,6 +553,10 @@ function buildArea(areaId){
   dayLabelEl.textContent = 'DAY ' + stepDefs[state.step].day;
   state.day = stepDefs[state.step].day;
   state.phaseLabel = stepDefs[state.step].phase;
+  scene.background = new THREE.Color(0x06080d);
+  hemi.intensity = 0.7;
+  dirLight.intensity = 0.9;
+  dirLight.position.set(6, 10, 5);
   scene.fog.color.set(0x080a10);
   scene.fog.near = 16; scene.fog.far = 42;
   if (areaId === 'home') buildHome();
@@ -561,29 +593,73 @@ function buildHome(){
     futonTrigger.position.y = 0.05;
     addItem('futonBed','布団',0.8,0.9,futonTrigger,itemInteract);
   }
-  addDoor('homeToTown','外へ出る',4.36,1.0,1.1,'town',{x:-10.5,z:0,yaw:-Math.PI/2},'x',0xe7d9be);
+  addDoor('homeToTown','外へ出る',4.36,1.0,1.1,'town',{x:-8.3,z:0,yaw:-Math.PI/2},'x',0xe7d9be);
   const homeLabel = makeLabelPlane('自宅', 1.4, 0.42); homeLabel.position.set(0,2.45,-3.84); areaGroup.add(homeLabel);
 }
 
 function buildTown(){
-  scene.fog.color.set(0x11161e);
-  scene.fog.near = 22; scene.fog.far = 48;
-  createFloor(28, 10, materials.tile, -0.1);
-  createCeiling(28, 10, 0xc6d2de);
-  wallSegment(0,-4.95,28,3.2,0.14,materials.wallDark); wallSegment(0,4.95,28,3.2,0.14,materials.wallDark);
-  const lane = new THREE.Mesh(new THREE.BoxGeometry(28,0.02,4.4), new THREE.MeshStandardMaterial({ color: 0x5b636c, roughness: 1 })); lane.position.set(0,-0.08,0); areaGroup.add(lane);
-  const hedge1 = new THREE.Mesh(new THREE.BoxGeometry(6,1.2,1.4), new THREE.MeshStandardMaterial({ color: 0x44553b, roughness: 1 })); hedge1.position.set(-6.0,0.6,-3.7); areaGroup.add(hedge1); addBoxCollider(-6.0,-3.7,6,1.4);
-  const hedge2 = hedge1.clone(); hedge2.position.set(6.8,0.6,3.7); areaGroup.add(hedge2); addBoxCollider(6.8,3.7,6,1.4);
-  const house = new THREE.Mesh(new THREE.BoxGeometry(3.0,2.4,2.2), materials.wallDark); house.position.set(-11.8,1.2,0); areaGroup.add(house); addBoxCollider(-11.8,0,3.0,2.2);
+  scene.background = new THREE.Color(0xaecdf0);
+  hemi.intensity = 1.12;
+  dirLight.intensity = 1.35;
+  dirLight.position.set(-8, 14, 6);
+  scene.fog.color.set(0xb7d3ee);
+  scene.fog.near = 34;
+  scene.fog.far = 82;
+
+  createFloor(36, 22, materials.grass, -0.11);
+  const road = new THREE.Mesh(new THREE.BoxGeometry(30, 0.03, 5.2), new THREE.MeshStandardMaterial({ color: 0x7d736a, roughness: 1 }));
+  road.position.set(1.5, -0.06, 0);
+  road.receiveShadow = true;
+  areaGroup.add(road);
+  const shoulderA = new THREE.Mesh(new THREE.BoxGeometry(30, 0.02, 0.45), new THREE.MeshStandardMaterial({ color: 0xcbb48a, roughness: 1 }));
+  shoulderA.position.set(1.5, -0.07, -2.85);
+  areaGroup.add(shoulderA);
+  const shoulderB = shoulderA.clone(); shoulderB.position.z = 2.85; areaGroup.add(shoulderB);
+
+  addCollider(-17.8, -10.8, 17.8, -8.8);
+  addCollider(-17.8, 8.8, 17.8, 10.8);
+  addCollider(-17.8, -10.8, -15.8, 10.8);
+  addCollider(15.8, -10.8, 17.8, 10.8);
+
+  const house = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.6, 3.8), new THREE.MeshStandardMaterial({ color: 0xcab89b, roughness: 1 }));
+  body.position.y = 1.3; body.castShadow = true; body.receiveShadow = true; house.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.8, 1.8, 4), new THREE.MeshStandardMaterial({ color: 0x5f4b40, roughness: 1 }));
+  roof.position.y = 3.0; roof.rotation.y = Math.PI * 0.25; roof.castShadow = true; roof.receiveShadow = true; house.add(roof);
+  house.position.set(-12.4, 0, 0);
+  areaGroup.add(house);
+  addBoxCollider(-12.4, 0, 5.1, 4.0);
+
   const innGate = new THREE.Group();
-  const postL = new THREE.Mesh(new THREE.BoxGeometry(0.28,2.8,0.28), materials.darkWood); postL.position.set(0,1.4,-1.4); innGate.add(postL);
-  const postR = postL.clone(); postR.position.z = 1.4; innGate.add(postR);
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(0.36,0.28,3.2), materials.darkWood); beam.position.set(0,2.72,0); innGate.add(beam);
-  const sign = makeLabelPlane('宵宿', 1.2, 0.42); sign.position.set(0,2.25,0); innGate.add(sign);
-  innGate.position.set(11.2,0,0); innGate.traverse(m=>{ if(m.isMesh){ m.castShadow = true; m.receiveShadow = true; } }); areaGroup.add(innGate);
-  addLamp(-7.8,0,0.44,0xffd39a); addLamp(0,0,0.44,0xffd39a); addLamp(8.6,0,0.44,0xffd39a);
-  addDoor('townToHome','自宅',-12.9,0,1.2,'home',{x:3.4,z:1.0,yaw:Math.PI/2},'x',0xc4c0b5);
-  addDoor('townToLobby','旅館入口',12.85,0,1.2,'lobby',{x:0,z:4.8,yaw:Math.PI},'x',0xc9b07a);
+  const postL = new THREE.Mesh(new THREE.BoxGeometry(0.32, 3.0, 0.32), materials.darkWood);
+  postL.position.set(0, 1.5, -1.7); innGate.add(postL);
+  const postR = postL.clone(); postR.position.z = 1.7; innGate.add(postR);
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 3.8), materials.darkWood);
+  beam.position.set(0, 2.96, 0); innGate.add(beam);
+  const sign = makeLabelPlane('宵宿', 1.35, 0.46); sign.position.set(0, 2.4, 0); innGate.add(sign);
+  innGate.position.set(12.6, 0, 0);
+  innGate.traverse(m => { if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
+  areaGroup.add(innGate);
+
+  const fenceMat = new THREE.MeshStandardMaterial({ color: 0x6e5a49, roughness: 1 });
+  for (const z of [-6.2, 6.2]) {
+    const fence = new THREE.Mesh(new THREE.BoxGeometry(18, 0.9, 0.12), fenceMat);
+    fence.position.set(4.5, 0.45, z); fence.castShadow = true; fence.receiveShadow = true; areaGroup.add(fence);
+  }
+
+  for (let x = -15; x <= 15; x += 3.6) {
+    addTree(x, -8.0 + ((x % 2) ? 0.4 : -0.4), 1 + (Math.abs(x) % 3) * 0.05);
+    addTree(x + 0.9, 8.0 + ((x % 2) ? -0.25 : 0.25), 0.94);
+  }
+  addTree(-4.0, -6.9, 1.1); addTree(-1.0, 6.9, 1.05); addTree(6.0, -6.8, 1.08); addTree(9.0, 6.7, 1.0);
+
+  addLamp(-6.0, 0, 0.28, 0xfff2d4);
+  addLamp(1.8, 0, 0.24, 0xfff2d4);
+  addLamp(9.0, 0, 0.24, 0xfff2d4);
+
+  addDoor('townToHome','自宅',-9.1,0,1.2,'home',{x:3.4,z:1.0,yaw:Math.PI/2},'x',0xc4c0b5);
+  addDoor('townToLobby','旅館入口',13.95,0,1.25,'lobby',{x:0,z:4.8,yaw:Math.PI},'x',0xc9b07a);
+  addNPC('villager','町の住民','villager',0x607b4d,-2.6,-1.2,Math.PI/2,npcInteract);
 }
 
 function buildLobby(){
@@ -724,6 +800,8 @@ function npcInteract(entity){
     showDialogue(storyNodes.maid, () => setStep('inspect_north'));
   } else if (entity.id === 'chef' && state.step === 'get_tray') {
     showDialogue(storyNodes.tray, ()=>{});
+  } else if (entity.id === 'villager') {
+    showDialogue(storyNodes.villager, ()=>{});
   }
 }
 
@@ -1234,7 +1312,9 @@ function closeSlotOverlay(){
 }
 
 function resetInput(){
-  input.joyX = 0; input.joyY = 0; input.keys = Object.create(null); centerJoystick();
+  input.joyX = 0; input.joyY = 0; input.keys = Object.create(null);
+  input.joyId = null; input.lookId = null; input.lookDragging = false; input.mouseDrag = false;
+  centerJoystick();
 }
 
 function setupControls(){
