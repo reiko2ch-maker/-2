@@ -51,8 +51,12 @@ body{overscroll-behavior:none;}
 .objective-title{font-size:12px; letter-spacing:.18em; color:var(--sub); margin-bottom:8px;}
 .objective-text{font-size:24px; font-weight:800; line-height:1.35;}
 .objective-sub{margin-top:6px; color:#cbc0a7;}
-.prompt{position:absolute; left:50%; bottom:calc(var(--safe-bottom) + 30px); transform:translateX(-50%); min-width:220px; padding:12px 20px; border-radius:999px; text-align:center; font-weight:700; opacity:0; transition:.18s ease;}
+.prompt{position:absolute; top:calc(var(--safe-top) + 132px); left:calc(var(--safe-left) + 168px); bottom:auto; transform:none; min-width:220px; max-width:min(46vw, 360px); padding:12px 18px; border-radius:18px; text-align:center; font-weight:700; opacity:0; transition:.18s ease; z-index:3; pointer-events:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .prompt.show{opacity:1;}
+@media (max-width: 900px){
+  .prompt{top:calc(var(--safe-top) + 146px); left:calc(var(--safe-left) + 122px); max-width:min(52vw, 280px); font-size:14px; padding:10px 14px;}
+}
+
 #minimap{position:absolute; top:calc(var(--safe-top) + 86px); right:calc(var(--safe-right) + 14px); width:270px; height:150px; border-radius:22px; padding:0;}
 .joystick-zone{position:absolute; z-index:3; left:calc(var(--safe-left) + 18px); bottom:calc(var(--safe-bottom) + 18px); width:150px; height:150px; pointer-events:auto; touch-action:none;}
 .move-label{position:absolute; left:14px; top:10px; color:rgba(203,195,178,.62); font-size:12px; letter-spacing:.18em;}

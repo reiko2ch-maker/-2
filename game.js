@@ -5,7 +5,7 @@ if (typeof THREE === 'undefined') {
   return;
 }
 
-const SAVE_PREFIX = 'yoiyado_real3d_a1_v24_slot_';
+const SAVE_PREFIX = 'yoiyado_real3d_a1_v26_slot_';
 const TAU = Math.PI * 2;
 
 const canvas = document.getElementById('game-canvas');
@@ -132,6 +132,9 @@ const stepDefs = {
   get_tray: { day: 1, phase: '昼勤務', text: '厨房でお茶の盆を受け取る', sub: '厨房へ', targetArea: 'kitchen', targetPos: { x: 0, z: -1 }, trigger: { type: 'item', id: 'tray' } },
   deliver_201: { day: 1, phase: '昼勤務', text: '201号室の客にお茶を届ける', sub: '201号室へ', targetArea: 'room201', targetPos: { x: 0, z: -1.8 }, trigger: { type: 'npc', id: 'guest201' } },
   report_okami: { day: 1, phase: '昼勤務', text: '帳場へ戻って女将に報告する', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
+  stock_amenities: { day: 1, phase: '昼勤務', text: '帳場横の戸棚から客用備品袋を受け取る', sub: '帳場の戸棚へ', targetArea: 'lobby', targetPos: { x: -5.6, z: 4.2 }, trigger: { type: 'item', id: 'amenityBag' } },
+  place_amenities: { day: 1, phase: '昼勤務', text: '客室廊下の備品箱へ客用備品を補充する', sub: '客室廊下へ', targetArea: 'corridor', targetPos: { x: -6.3, z: 2.4 }, trigger: { type: 'item', id: 'amenityBox' } },
+  arrange_slippers: { day: 1, phase: '昼勤務', text: '客室廊下入口の下駄箱前でスリッパを揃える', sub: '客室廊下へ', targetArea: 'corridor', targetPos: { x: -9.4, z: -3.2 }, trigger: { type: 'item', id: 'slipperRack' } },
   restock_towels: { day: 1, phase: '昼勤務', text: '浴場前の棚に替えタオルを補充する', sub: '浴場前へ', targetArea: 'bath', targetPos: { x: 2.5, z: 2.6 }, trigger: { type: 'item', id: 'towelShelf' } },
   answer_phone: { day: 1, phase: '夕方', text: '浴場前の黒電話に出る', sub: '浴場前へ', targetArea: 'bath', targetPos: { x: 2.5, z: -2.5 }, trigger: { type: 'item', id: 'phone' } },
   inspect_archive: { day: 1, phase: '深夜調査', text: '宿帳庫で青い宿帳を探す', sub: '宿帳庫へ', targetArea: 'archive', targetPos: { x: 0, z: -3 }, trigger: { type: 'item', id: 'blueLedger' } },
@@ -157,7 +160,7 @@ const storyNodes = {
     ['女将', `よう来たね。ここは人手が足りていない。
 今夜から帳場の手伝いをしてもらう。`, 'okami'],
     ['女将', `まずは厨房へ行って、201号室へお茶の盆を届けておくれ。
-そのあと浴場前の替えタオルも補充しておいて。`, 'okami']
+戻ったら備品袋、下駄箱、浴場前の替えタオルまでまとめて頼むよ。`, 'okami']
   ],
   tray: [
     ['料理番', `女将さんから聞いてるよ。
@@ -172,7 +175,20 @@ const storyNodes = {
   report_okami: [
     ['女将', `客の話は気にしなくていい。
 古い建物だから、音はいろいろ響くものさ。`, 'okami'],
-    ['女将', `浴場前の棚が空いている。替えタオルを置いたら、帳場へ戻ってきな。`, 'okami']
+    ['女将', `その前に、帳場横の戸棚から客用備品を持って廊下の備品箱へ。
+入口のスリッパも揃えておくれ。最後に浴場前の棚へ替えタオルだ。`, 'okami']
+  ],
+  amenityBag: [
+    ['主人公', `歯ブラシ、髭剃り、巾着入りの茶葉。
+客用備品袋を戸棚から受け取った。`, 'hero']
+  ],
+  amenityBox: [
+    ['主人公', `廊下の備品箱へ客用備品を補充した。
+一番下の段に、見覚えのない古い札が一枚混ざっている。`, 'hero']
+  ],
+  slippers: [
+    ['主人公', `乱れていたスリッパを番号順に並べ直した。
+一足だけ、濡れた足跡がついたまま乾いていない。`, 'hero']
   ],
   towel: [
     ['主人公', `替えタオルを棚へ積み直した。
@@ -606,20 +622,26 @@ function buildTown(){
   scene.fog.near = 34;
   scene.fog.far = 82;
 
-  createFloor(36, 22, materials.grass, -0.11);
-  const road = new THREE.Mesh(new THREE.BoxGeometry(30, 0.03, 5.2), new THREE.MeshStandardMaterial({ color: 0x7d736a, roughness: 1 }));
+  createFloor(40, 24, materials.grass, -0.11);
+  const road = new THREE.Mesh(new THREE.BoxGeometry(32, 0.03, 5.4), new THREE.MeshStandardMaterial({ color: 0x7d736a, roughness: 1 }));
   road.position.set(1.5, -0.06, 0);
   road.receiveShadow = true;
   areaGroup.add(road);
-  const shoulderA = new THREE.Mesh(new THREE.BoxGeometry(30, 0.02, 0.45), new THREE.MeshStandardMaterial({ color: 0xcbb48a, roughness: 1 }));
-  shoulderA.position.set(1.5, -0.07, -2.85);
+  const shoulderA = new THREE.Mesh(new THREE.BoxGeometry(32, 0.02, 0.55), new THREE.MeshStandardMaterial({ color: 0xcbb48a, roughness: 1 }));
+  shoulderA.position.set(1.5, -0.07, -2.95);
   areaGroup.add(shoulderA);
-  const shoulderB = shoulderA.clone(); shoulderB.position.z = 2.85; areaGroup.add(shoulderB);
+  const shoulderB = shoulderA.clone(); shoulderB.position.z = 2.95; areaGroup.add(shoulderB);
 
-  addCollider(-17.8, -10.8, 17.8, -8.8);
-  addCollider(-17.8, 8.8, 17.8, 10.8);
-  addCollider(-17.8, -10.8, -15.8, 10.8);
-  addCollider(15.8, -10.8, 17.8, 10.8);
+  addCollider(-19.8, -11.6, 19.8, -9.4);
+  addCollider(-19.8, 9.4, 19.8, 11.6);
+  addCollider(-19.8, -11.6, -17.4, 11.6);
+  addCollider(17.4, -11.6, 19.8, 11.6);
+
+  const mountainMat = new THREE.MeshStandardMaterial({ color: 0x5e6f67, roughness: 1 });
+  for (const [x,z,s] of [[-10,-12,6],[2,-13,7],[14,-12.5,5.8],[-4,12.5,5.6],[11,13,6.6]]) {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(s, 6.2, 5), mountainMat);
+    m.position.set(x, 2.2, z); m.rotation.y = Math.PI * 0.25; m.castShadow = true; m.receiveShadow = true; areaGroup.add(m);
+  }
 
   const house = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.6, 3.8), new THREE.MeshStandardMaterial({ color: 0xcab89b, roughness: 1 }));
@@ -630,32 +652,57 @@ function buildTown(){
   areaGroup.add(house);
   addBoxCollider(-12.4, 0, 5.1, 4.0);
 
-  const innGate = new THREE.Group();
-  const postL = new THREE.Mesh(new THREE.BoxGeometry(0.32, 3.0, 0.32), materials.darkWood);
-  postL.position.set(0, 1.5, -1.7); innGate.add(postL);
-  const postR = postL.clone(); postR.position.z = 1.7; innGate.add(postR);
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 3.8), materials.darkWood);
-  beam.position.set(0, 2.96, 0); innGate.add(beam);
-  const sign = makeLabelPlane('宵宿', 1.35, 0.46); sign.position.set(0, 2.4, 0); innGate.add(sign);
-  innGate.position.set(12.6, 0, 0);
-  innGate.traverse(m => { if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
-  areaGroup.add(innGate);
+  const inn = new THREE.Group();
+  const main = new THREE.Mesh(new THREE.BoxGeometry(7.8, 3.0, 6.2), new THREE.MeshStandardMaterial({ color: 0xd7c6aa, roughness: 1 }));
+  main.position.set(0,1.5,0); main.castShadow = true; main.receiveShadow = true; inn.add(main);
+  const wingL = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.6, 3.8), new THREE.MeshStandardMaterial({ color: 0xd2c1a4, roughness: 1 }));
+  wingL.position.set(-4.8,1.3,1.0); wingL.castShadow = true; wingL.receiveShadow = true; inn.add(wingL);
+  const wingR = wingL.clone(); wingR.position.set(4.8,1.3,1.0); inn.add(wingR);
+  const roofMain = new THREE.Mesh(new THREE.ConeGeometry(5.8, 2.2, 4), new THREE.MeshStandardMaterial({ color: 0x514134, roughness: 1 }));
+  roofMain.position.set(0,3.5,0); roofMain.rotation.y = Math.PI * 0.25; roofMain.castShadow = true; roofMain.receiveShadow = true; inn.add(roofMain);
+  const roofWingL = new THREE.Mesh(new THREE.ConeGeometry(2.8, 1.5, 4), new THREE.MeshStandardMaterial({ color: 0x5a493c, roughness: 1 }));
+  roofWingL.position.set(-4.8,2.9,1.0); roofWingL.rotation.y = Math.PI * 0.25; roofWingL.castShadow = true; roofWingL.receiveShadow = true; inn.add(roofWingL);
+  const roofWingR = roofWingL.clone(); roofWingR.position.set(4.8,2.9,1.0); inn.add(roofWingR);
+  const porch = new THREE.Mesh(new THREE.BoxGeometry(3.8,0.18,1.9), materials.darkWood); porch.position.set(0,0.18,4.0); porch.castShadow = true; porch.receiveShadow = true; inn.add(porch);
+  const step = new THREE.Mesh(new THREE.BoxGeometry(4.6,0.16,0.9), new THREE.MeshStandardMaterial({ color: 0x857462, roughness: 1 })); step.position.set(0,0.08,5.2); step.receiveShadow = true; inn.add(step);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.8,2.1,0.12), new THREE.MeshStandardMaterial({ color: 0xe5dfcf, roughness: 0.95 })); door.position.set(0,1.05,3.16); door.castShadow = true; door.receiveShadow = true; inn.add(door);
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.4,0.24,0.28), materials.darkWood); lintel.position.set(0,2.3,3.06); lintel.castShadow = true; lintel.receiveShadow = true; inn.add(lintel);
+  const noren = new THREE.Mesh(new THREE.BoxGeometry(2.1,0.02,0.95), new THREE.MeshStandardMaterial({ color: 0x25496e, roughness: 1 })); noren.position.set(0,2.05,3.44); inn.add(noren);
+  const lanternL = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.58,16), new THREE.MeshStandardMaterial({ color: 0xf8f1df, emissive: 0x7a5314, emissiveIntensity: 0.18, roughness: 0.8 }));
+  lanternL.position.set(-1.7,1.9,3.55); lanternL.castShadow = true; lanternL.receiveShadow = true; inn.add(lanternL);
+  const lanternR = lanternL.clone(); lanternR.position.set(1.7,1.9,3.55); inn.add(lanternR);
+  const windowMat = new THREE.MeshStandardMaterial({ map: makeShojiTexture(320,320), roughness: 1 });
+  for (const x of [-2.6,2.6,-5.0,5.0]) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(1.4,1.2,0.08), windowMat); win.position.set(x,1.5,3.18); win.castShadow = true; win.receiveShadow = true; inn.add(win);
+  }
+  const nameBoard = makeLabelPlane('宵宿旅館', 2.2, 0.5); nameBoard.position.set(0,2.9,3.28); inn.add(nameBoard);
+  inn.position.set(12.7,0,0); inn.traverse(m => { if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
+  areaGroup.add(inn);
+  addBoxCollider(8.9,0,3.2,6.6);
+  addBoxCollider(16.5,0,3.2,6.6);
+  addBoxCollider(12.7,-2.45,7.4,1.25);
+  addBoxCollider(12.7,2.65,7.4,1.15);
 
-  const fenceMat = new THREE.MeshStandardMaterial({ color: 0x6e5a49, roughness: 1 });
-  for (const z of [-6.2, 6.2]) {
-    const fence = new THREE.Mesh(new THREE.BoxGeometry(18, 0.9, 0.12), fenceMat);
-    fence.position.set(4.5, 0.45, z); fence.castShadow = true; fence.receiveShadow = true; areaGroup.add(fence);
+  const gravel = new THREE.Mesh(new THREE.BoxGeometry(4.8,0.04,6.0), new THREE.MeshStandardMaterial({ color: 0xb5a387, roughness: 1 }));
+  gravel.position.set(12.7,-0.05,0); gravel.receiveShadow = true; areaGroup.add(gravel);
+  const path = new THREE.Mesh(new THREE.BoxGeometry(10,0.03,2.5), new THREE.MeshStandardMaterial({ color: 0x9c8a73, roughness: 1 }));
+  path.position.set(8.0,-0.04,0); path.receiveShadow = true; areaGroup.add(path);
+  const sideFenceMat = new THREE.MeshStandardMaterial({ color: 0x6e5a49, roughness: 1 });
+  for (const z of [-6.8, 6.8]) {
+    const fence = new THREE.Mesh(new THREE.BoxGeometry(18, 0.9, 0.12), sideFenceMat);
+    fence.position.set(4.8, 0.45, z); fence.castShadow = true; fence.receiveShadow = true; areaGroup.add(fence);
   }
 
-  for (let x = -15; x <= 15; x += 3.6) {
-    addTree(x, -8.0 + ((x % 2) ? 0.4 : -0.4), 1 + (Math.abs(x) % 3) * 0.05);
-    addTree(x + 0.9, 8.0 + ((x % 2) ? -0.25 : 0.25), 0.94);
+  for (let x = -16; x <= 16; x += 3.6) {
+    addTree(x, -8.8 + ((x % 2) ? 0.4 : -0.4), 1 + (Math.abs(x) % 3) * 0.05);
+    addTree(x + 0.9, 8.8 + ((x % 2) ? -0.25 : 0.25), 0.94);
   }
-  addTree(-4.0, -6.9, 1.1); addTree(-1.0, 6.9, 1.05); addTree(6.0, -6.8, 1.08); addTree(9.0, 6.7, 1.0);
+  addTree(-4.0, -7.4, 1.1); addTree(-1.0, 7.4, 1.05); addTree(5.8, -7.2, 1.08); addTree(9.2, 7.2, 1.0); addTree(15.5, -7.1, 1.0);
 
   addLamp(-6.0, 0, 0.28, 0xfff2d4);
   addLamp(1.8, 0, 0.24, 0xfff2d4);
-  addLamp(9.0, 0, 0.24, 0xfff2d4);
+  addLamp(9.2, 0, 0.24, 0xfff2d4);
+  addLamp(12.7, 2.4, 0.42, 0xffecbf);
 
   addDoor('townToHome','自宅',-9.1,0,1.2,'home',{x:3.4,z:1.0,yaw:Math.PI/2},'x',0xc4c0b5);
   addDoor('townToLobby','旅館入口',13.95,0,1.25,'lobby',{x:0,z:4.8,yaw:Math.PI},'x',0xc9b07a);
@@ -676,6 +723,8 @@ function buildLobby(){
   cabinet.position.set(-6.2,0.9,4.4); cabinet.castShadow = cabinet.receiveShadow = true; areaGroup.add(cabinet); addBoxCollider(-5.2,3.4,1.3,0.6);
   const blackPhone = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.14,0.28), materials.black);
   blackPhone.position.set(2.2,1.36,-4.35); areaGroup.add(blackPhone);
+  const amenityCab = new THREE.Mesh(new THREE.BoxGeometry(0.72,0.4,0.46), new THREE.MeshStandardMaterial({ color: 0x8f7555, roughness: 0.9 })); amenityCab.position.y = 1.28;
+  if (state.step === 'stock_amenities') addItem('amenityBag','客用備品袋',-5.2,3.42, amenityCab, itemInteract);
   addDoor('lobbyToCorridor', '客室廊下', 7.32, 0, 1.35, 'corridor', { x: -7.6, z: 0, yaw: 0 });
   addDoor('lobbyToKitchen', '厨房', -7.32, 2.6, 1.2, 'kitchen', { x: 5.0, z: -1.2, yaw: Math.PI });
   addDoor('lobbyToArchive', '宿帳庫', -7.32, -2.6, 1.2, 'archive', { x: 5.1, z: 0, yaw: Math.PI });
@@ -713,6 +762,13 @@ function buildCorridor(){
   addDoor('corridorToBath','浴場',7.7,4.58,1.2,'bath',{x:-3.6,z:0,yaw:0},null,0xd7ecef);
   addDoor('corridorToNorth','北廊下',11.34,0,1.2,'north',{x:-3.7,z:0,yaw:0},'x',0xc3b28a);
   const placard = makeLabelPlane('客室廊下', 1.8, 0.45); placard.position.set(-8.4,2.4,-4.6); areaGroup.add(placard);
+  const amenityBox = new THREE.Mesh(new THREE.BoxGeometry(0.88,0.7,0.64), materials.darkWood); amenityBox.position.set(-6.1,0.35,2.4); amenityBox.castShadow = amenityBox.receiveShadow = true; areaGroup.add(amenityBox); addBoxCollider(-6.1,2.4,0.88,0.64);
+  const slipperRack = new THREE.Group();
+  const rackBase = new THREE.Mesh(new THREE.BoxGeometry(1.7,0.55,0.36), materials.darkWood); rackBase.position.set(0,0.28,0); slipperRack.add(rackBase);
+  for (const [sx,sz] of [[-0.45,-0.06],[0,0.04],[0.45,-0.02]]) { const pair = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.08,0.16), new THREE.MeshStandardMaterial({ color: 0xe8e0ce, roughness: 1 })); pair.position.set(sx,0.38,sz); slipperRack.add(pair); }
+  slipperRack.position.set(-9.3,0,-3.25); slipperRack.traverse(m=>{ if(m.isMesh){ m.castShadow = m.receiveShadow = true; } }); areaGroup.add(slipperRack); addBoxCollider(-9.3,-3.25,1.7,0.36);
+  if (state.step === 'place_amenities') addItem('amenityBox','備品箱',-6.1,2.4, new THREE.Mesh(new THREE.BoxGeometry(0.48,0.18,0.32), new THREE.MeshStandardMaterial({ color: 0xe1d4be, roughness: 1 })), itemInteract);
+  if (state.step === 'arrange_slippers') addItem('slipperRack','下駄箱前',-9.3,-3.25, new THREE.Mesh(new THREE.BoxGeometry(0.6,0.1,0.3), new THREE.MeshStandardMaterial({ color: 0xf4efe5, roughness: 1 })), itemInteract);
   addNPC('maid','仲居','maid',0x575a79,4.6,1.2,Math.PI,npcInteract);
 }
 
@@ -733,6 +789,10 @@ function buildBath(){
   wallSegment(0,-3.95,10,3.2,0.14,materials.wallRose); wallSegment(0,3.95,10,3.2,0.14,materials.wallRose); wallSegment(-4.95,0,0.14,3.2,8,materials.wallRose); wallSegment(4.95,0,0.14,3.2,8,materials.wallRose);
   bathCurtain();
   const bench = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.42,0.6), materials.darkWood); bench.position.set(2.2,0.21,2.8); areaGroup.add(bench); addBoxCollider(2.2,2.8,2.2,0.6);
+  const shelfBody = new THREE.Mesh(new THREE.BoxGeometry(1.5,1.4,0.42), materials.darkWood); shelfBody.position.set(2.35,0.7,2.45); shelfBody.castShadow = shelfBody.receiveShadow = true; areaGroup.add(shelfBody); addBoxCollider(2.35,2.45,1.5,0.42);
+  for (const sy of [0.48,0.94]) { const plank = new THREE.Mesh(new THREE.BoxGeometry(1.44,0.05,0.5), materials.wood); plank.position.set(2.35,sy,2.45); areaGroup.add(plank); }
+  for (const [tx,ty,tz] of [[1.95,1.15,2.47],[2.35,1.15,2.47],[2.75,1.15,2.47],[2.05,0.69,2.47],[2.45,0.69,2.47],[2.85,0.69,2.47]]) { const towel = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.16,0.24), new THREE.MeshStandardMaterial({ color: 0xf1f3f6, roughness: 1 })); towel.position.set(tx,ty,tz); areaGroup.add(towel); }
+  if (state.step === 'restock_towels') addItem('towelShelf','替えタオル棚',2.35,2.45, new THREE.Mesh(new THREE.BoxGeometry(0.54,0.22,0.26), new THREE.MeshStandardMaterial({ color: 0xf1f3f6, roughness: 1 })), itemInteract);
   addLamp(-2.3,0,0.7,0xffe6bc); addLamp(2.3,0,0.7,0xffe6bc);
   addDoor('bathToCorridor','客室廊下',-4.35,0,1.2,'corridor',{x:6.2,z:1.8,yaw:Math.PI},'x',0xddeff3);
   const phoneTable = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.52,0.58), materials.darkWood); phoneTable.position.set(2.5,0.26,-2.5); areaGroup.add(phoneTable); addBoxCollider(2.5,-2.5,0.9,0.58);
@@ -786,7 +846,7 @@ function npcInteract(entity){
     if (state.step === 'talk_okami') {
       showDialogue(storyNodes.okami_intro, () => setStep('get_tray'));
     } else if (state.step === 'report_okami') {
-      showDialogue(storyNodes.report_okami, () => setStep('restock_towels'));
+      showDialogue(storyNodes.report_okami, () => setStep('stock_amenities'));
     } else if (state.step === 'escape_archive') {
       showDialogue(storyNodes.escape_archive, () => openReturnHome());
     } else if (state.step === 'escape_detached') {
@@ -813,7 +873,17 @@ function itemInteract(entity){
     removeItem(entity.id);
     state.questFlags.hasTray = true;
     showDialogue(storyNodes.tray, () => setStep('deliver_201'));
+  } else if (entity.id === 'amenityBag' && state.step === 'stock_amenities') {
+    state.questFlags.hasAmenityBag = true;
+    showDialogue(storyNodes.amenityBag, () => setStep('place_amenities'));
+  } else if (entity.id === 'amenityBox' && state.step === 'place_amenities') {
+    state.questFlags.placedAmenities = true;
+    showDialogue(storyNodes.amenityBox, () => setStep('arrange_slippers'));
+  } else if (entity.id === 'slipperRack' && state.step === 'arrange_slippers') {
+    state.questFlags.arrangedSlippers = true;
+    showDialogue(storyNodes.slippers, () => setStep('restock_towels'));
   } else if (entity.id === 'towelShelf' && state.step === 'restock_towels') {
+    state.questFlags.restockedTowels = true;
     showDialogue(storyNodes.towel, () => setStep('answer_phone'));
   } else if (entity.id === 'phone' && state.step === 'answer_phone') {
     showDialogue(storyNodes.phone, () => setStep('inspect_archive'));
