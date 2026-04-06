@@ -1,14 +1,7 @@
-# 宵宿 A-1 Real3D GitHub Trial v26
+宵宿 A-1 Real3D Trial v27 Entrance Fix
 
-更新点
-- 田舎町の旅館外観を強化
-- 昼勤務に備品補充 / 下駄箱整理 / タオル補充を追加
-- 浴場前で詰む不具合を修正
-- 3スロットSAVE / LOAD対応
+- 旅館入口の当たり判定位置を玄関前へ修正
+- 入口判定半径を拡大
+- キャッシュ対策として styles.css / game.js に ?v=27 を付与
 
-ファイル
-- index.html
-- play.html
-- styles.css
-- game.js
-- README.md
+GitHub Pages へはこのフォルダ内の5ファイルをそのまま直下へ配置してください。

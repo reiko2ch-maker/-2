@@ -5,7 +5,7 @@ if (typeof THREE === 'undefined') {
   return;
 }
 
-const SAVE_PREFIX = 'yoiyado_real3d_a1_v26_slot_';
+const SAVE_PREFIX = 'yoiyado_real3d_a1_v27_slot_';
 const TAU = Math.PI * 2;
 
 const canvas = document.getElementById('game-canvas');
@@ -127,7 +127,7 @@ const areaLabels = {
 const stepDefs = {
   start_note: { day: 1, phase: '出勤前', text: '机の読み物で今日の予定を確認する', sub: '机へ', targetArea: 'home', targetPos: { x: -1.7, z: -1.8 }, trigger: { type: 'item', id: 'scheduleNote' } },
   leave_home: { day: 1, phase: '出勤前', text: '玄関から外へ出る', sub: '玄関へ', targetArea: 'home', targetPos: { x: 4.4, z: 1.1 }, trigger: { type: 'door', id: 'homeToTown' } },
-  walk_to_ryokan: { day: 1, phase: '出勤前', text: '田舎町を歩いて旅館へ向かう', sub: '旅館入口へ', targetArea: 'town', targetPos: { x: 11.2, z: 0 }, trigger: { type: 'door', id: 'townToLobby' } },
+  walk_to_ryokan: { day: 1, phase: '出勤前', text: '田舎町を歩いて旅館へ向かう', sub: '旅館入口へ', targetArea: 'town', targetPos: { x: 12.7, z: 4.2 }, trigger: { type: 'door', id: 'townToLobby' } },
   talk_okami: { day: 1, phase: '昼勤務', text: '女将に話しかける', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
   get_tray: { day: 1, phase: '昼勤務', text: '厨房でお茶の盆を受け取る', sub: '厨房へ', targetArea: 'kitchen', targetPos: { x: 0, z: -1 }, trigger: { type: 'item', id: 'tray' } },
   deliver_201: { day: 1, phase: '昼勤務', text: '201号室の客にお茶を届ける', sub: '201号室へ', targetArea: 'room201', targetPos: { x: 0, z: -1.8 }, trigger: { type: 'npc', id: 'guest201' } },
@@ -141,7 +141,7 @@ const stepDefs = {
   escape_archive: { day: 1, phase: '深夜追跡', text: '誘導員から逃げて帳場へ戻る', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
   sleep_day1: { day: 1, phase: '帰宅', text: '布団で眠って体を休める', sub: '布団へ', targetArea: 'home', targetPos: { x: -0.2, z: -0.9 }, trigger: { type: 'item', id: 'futonBed' } },
   leave_home_day2: { day: 2, phase: '出勤前', text: '玄関から外へ出る', sub: '玄関へ', targetArea: 'home', targetPos: { x: 4.4, z: 1.1 }, trigger: { type: 'door', id: 'homeToTown' } },
-  commute_day2: { day: 2, phase: '出勤前', text: '田舎町を歩いて旅館へ向かう', sub: '旅館入口へ', targetArea: 'town', targetPos: { x: 11.2, z: 0 }, trigger: { type: 'door', id: 'townToLobby' } },
+  commute_day2: { day: 2, phase: '出勤前', text: '田舎町を歩いて旅館へ向かう', sub: '旅館入口へ', targetArea: 'town', targetPos: { x: 12.7, z: 4.2 }, trigger: { type: 'door', id: 'townToLobby' } },
   talk_maid: { day: 2, phase: '昼勤務', text: '廊下で仲居に昨夜のことを聞く', sub: '客室廊下へ', targetArea: 'corridor', targetPos: { x: 0, z: 0 }, trigger: { type: 'npc', id: 'maid' } },
   inspect_north: { day: 2, phase: '夕方', text: '北廊下の閉ざされた札を調べる', sub: '北廊下へ', targetArea: 'north', targetPos: { x: 0, z: -2.5 }, trigger: { type: 'item', id: 'sealTag' } },
   inspect_detached: { day: 2, phase: '深夜調査', text: '離れ通路の祠を調べる', sub: '離れ通路へ', targetArea: 'detached', targetPos: { x: 0, z: -3 }, trigger: { type: 'item', id: 'altar' } },
@@ -665,9 +665,16 @@ function buildTown(){
   const roofWingR = roofWingL.clone(); roofWingR.position.set(4.8,2.9,1.0); inn.add(roofWingR);
   const porch = new THREE.Mesh(new THREE.BoxGeometry(3.8,0.18,1.9), materials.darkWood); porch.position.set(0,0.18,4.0); porch.castShadow = true; porch.receiveShadow = true; inn.add(porch);
   const step = new THREE.Mesh(new THREE.BoxGeometry(4.6,0.16,0.9), new THREE.MeshStandardMaterial({ color: 0x857462, roughness: 1 })); step.position.set(0,0.08,5.2); step.receiveShadow = true; inn.add(step);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(1.8,2.1,0.12), new THREE.MeshStandardMaterial({ color: 0xe5dfcf, roughness: 0.95 })); door.position.set(0,1.05,3.16); door.castShadow = true; door.receiveShadow = true; inn.add(door);
-  const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.4,0.24,0.28), materials.darkWood); lintel.position.set(0,2.3,3.06); lintel.castShadow = true; lintel.receiveShadow = true; inn.add(lintel);
-  const noren = new THREE.Mesh(new THREE.BoxGeometry(2.1,0.02,0.95), new THREE.MeshStandardMaterial({ color: 0x25496e, roughness: 1 })); noren.position.set(0,2.05,3.44); inn.add(noren);
+  const doorFrameL = new THREE.Mesh(new THREE.BoxGeometry(0.16,2.2,0.22), materials.darkWood);
+  doorFrameL.position.set(-1.02,1.1,3.13); doorFrameL.castShadow = true; doorFrameL.receiveShadow = true; inn.add(doorFrameL);
+  const doorFrameR = doorFrameL.clone(); doorFrameR.position.x = 1.02; inn.add(doorFrameR);
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.28,0.24,0.28), materials.darkWood); lintel.position.set(0,2.3,3.06); lintel.castShadow = true; lintel.receiveShadow = true; inn.add(lintel);
+  const doorL = new THREE.Mesh(new THREE.BoxGeometry(0.86,2.02,0.11), new THREE.MeshStandardMaterial({ color: 0xeee6d7, roughness: 0.95 }));
+  doorL.position.set(-0.46,1.02,3.14); doorL.castShadow = true; doorL.receiveShadow = true; inn.add(doorL);
+  const doorR = doorL.clone(); doorR.position.x = 0.46; inn.add(doorR);
+  const handleL = new THREE.Mesh(new THREE.SphereGeometry(0.04,10,10), materials.brass); handleL.position.set(-0.1,1.02,3.21); inn.add(handleL);
+  const handleR = handleL.clone(); handleR.position.x = 0.1; inn.add(handleR);
+  const noren = new THREE.Mesh(new THREE.BoxGeometry(2.1,0.02,0.9), new THREE.MeshStandardMaterial({ color: 0x25496e, roughness: 1 })); noren.position.set(0,2.02,3.42); inn.add(noren);
   const lanternL = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.58,16), new THREE.MeshStandardMaterial({ color: 0xf8f1df, emissive: 0x7a5314, emissiveIntensity: 0.18, roughness: 0.8 }));
   lanternL.position.set(-1.7,1.9,3.55); lanternL.castShadow = true; lanternL.receiveShadow = true; inn.add(lanternL);
   const lanternR = lanternL.clone(); lanternR.position.set(1.7,1.9,3.55); inn.add(lanternR);
@@ -681,7 +688,8 @@ function buildTown(){
   addBoxCollider(8.9,0,3.2,6.6);
   addBoxCollider(16.5,0,3.2,6.6);
   addBoxCollider(12.7,-2.45,7.4,1.25);
-  addBoxCollider(12.7,2.65,7.4,1.15);
+  addBoxCollider(10.45,2.65,2.9,1.15);
+  addBoxCollider(14.95,2.65,2.9,1.15);
 
   const gravel = new THREE.Mesh(new THREE.BoxGeometry(4.8,0.04,6.0), new THREE.MeshStandardMaterial({ color: 0xb5a387, roughness: 1 }));
   gravel.position.set(12.7,-0.05,0); gravel.receiveShadow = true; areaGroup.add(gravel);
@@ -705,7 +713,7 @@ function buildTown(){
   addLamp(12.7, 2.4, 0.42, 0xffecbf);
 
   addDoor('townToHome','自宅',-9.1,0,1.2,'home',{x:3.4,z:1.0,yaw:Math.PI/2},'x',0xc4c0b5);
-  addDoor('townToLobby','旅館入口',13.95,0,1.25,'lobby',{x:0,z:4.8,yaw:Math.PI},'x',0xc9b07a);
+  addDoor('townToLobby','旅館入口',12.7,4.1,1.85,'lobby',{x:0,z:4.8,yaw:Math.PI},undefined,0xc9b07a);
   addNPC('villager','町の住民','villager',0x607b4d,-2.6,-1.2,Math.PI/2,npcInteract);
 }
 
