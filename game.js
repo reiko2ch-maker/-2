@@ -41,7 +41,7 @@
   const movePad = document.getElementById('movePad');
   const moveKnob = document.getElementById('moveKnob');
 
-  const STORAGE_KEY = 'yoinado_v17_3d_story_save';
+  const STORAGE_KEY = 'yoinado_v18_3d_story_save';
   const FOV = Math.PI / 3.0;
   const MAX_DEPTH = 26;
 
@@ -63,6 +63,7 @@
     chasedBefore: false,
     lastStatusTimer: 0,
     portraitKind: 'narrator',
+    transitionLock: 0,
   };
 
   const tasks = {
@@ -113,6 +114,16 @@
   const moveInput = { active:false, x:0, y:0, pointerId:null };
   const lookInput = { active:false, lastX:0, pointerId:null, dx:0 };
 
+  function resetTransientInput() {
+    keys.w = false; keys.a = false; keys.s = false; keys.d = false; keys.shift = false;
+    moveInput.active = false; moveInput.x = 0; moveInput.y = 0; moveInput.pointerId = null;
+    lookInput.active = false; lookInput.pointerId = null; lookInput.dx = 0;
+    if (typeof moveKnob !== 'undefined' && moveKnob) {
+      moveKnob.style.left = '50%';
+      moveKnob.style.top = '50%';
+    }
+  }
+
   const areas = {
     lobby: {
       name: '帳場',
@@ -132,7 +143,7 @@
       ],
       spawns: {
         start: { x: 2.4, y: 8.4, a: -0.02 },
-        fromHall: { x: 12.7, y: 8.0, a: Math.PI },
+        fromHall: { x: 11.8, y: 8.0, a: Math.PI },
         fromKitchen: { x: 2.8, y: 3.8, a: 1.2 },
       },
       signs: [
@@ -164,7 +175,7 @@
         fromBath: { x: 18.0, y: 5.0, a: Math.PI },
         fromArchive: { x: 14.0, y: 2.0, a: Math.PI / 2 },
         fromRoom203: { x: 16.2, y: 5.0, a: Math.PI },
-        fromStaff: { x: 3.2, y: 7.2, a: 0 },
+        fromStaff: { x: 4.7, y: 7.2, a: 0 },
         fromCourtyard: { x: 21.0, y: 7.2, a: Math.PI },
         fromClosedWing: { x: 18.4, y: 7.2, a: Math.PI },
       },
@@ -262,7 +273,7 @@
         '#..........TT..#',
         '################'
       ],
-      spawns: { entry: { x: 2.0, y: 7.0, a: 0 } },
+      spawns: { entry: { x: 3.2, y: 6.2, a: 0 } },
       signs: [{ x: 8.0, y: 1.8, text: '宿帳庫' }]
     },
     closedWing: {
@@ -281,7 +292,7 @@
         '#................#',
         '##################'
       ],
-      spawns: { entry: { x: 2.0, y: 8.0, a: 0 } },
+      spawns: { entry: { x: 3.0, y: 7.0, a: 0 } },
       signs: [{ x: 13.8, y: 3.7, text: '祭壇前' }, { x: 6.0, y: 1.8, text: '閉鎖棟' }]
     }
 ,
@@ -316,7 +327,7 @@ staff: {
     '#............#',
     '##############'
   ],
-  spawns: { door: { x: 11.0, y: 5.0, a: Math.PI } },
+  spawns: { door: { x: 9.2, y: 5.0, a: Math.PI } },
   signs: [{ x: 6.4, y: 1.7, text: '従業員室' }]
 },
 courtyard: {
@@ -354,7 +365,7 @@ annex: {
     '#..................#',
     '####################'
   ],
-  spawns: { entry: { x: 2.0, y: 8.0, a: 0 } },
+  spawns: { entry: { x: 3.0, y: 7.2, a: 0 } },
   signs: [{ x: 8.5, y: 1.8, text: '離れ通路' }, { x: 16.0, y: 6.6, text: '記録保管棚' }]
 },
 cellar: {
@@ -373,27 +384,29 @@ cellar: {
     '#..................#',
     '####################'
   ],
-  spawns: { entry: { x: 2.0, y: 8.0, a: 0 } },
+  spawns: { entry: { x: 3.2, y: 7.4, a: 0 } },
   signs: [{ x: 8.2, y: 1.8, text: '地下記録庫' }, { x: 14.4, y: 7.4, text: '祭具棚' }]
 }
 
   };
 
   const textures = createTextures();
+  const characterSpriteSets = {
+    okami: makeCharacterSet('okami'),
+    guest: makeCharacterSet('guest'),
+    maid: makeCharacterSet('maid'),
+    guest202: makeCharacterSet('guest202'),
+    guest203: makeCharacterSet('guest203'),
+    guide: makeCharacterSet('guide'),
+  };
   const spriteCanvases = {
-    okami: makeCharacterSprite('okami', false),
-    guest: makeCharacterSprite('guest', false),
-    maid: makeCharacterSprite('maid', false),
-    guest202: makeCharacterSprite('guest202', false),
-    guest203: makeCharacterSprite('guest203', false),
-    guide: makeCharacterSprite('guide', false),
     narrator: makePortrait('narrator'),
-    okamiPortrait: makePortrait('okami'),
-    guestPortrait: makePortrait('guest'),
-    maidPortrait: makePortrait('maid'),
-    guest202Portrait: makePortrait('guest202'),
-    guest203Portrait: makePortrait('guest203'),
-    guidePortrait: makePortrait('guide'),
+    okamiPortrait: characterSpriteSets.okami.portrait,
+    guestPortrait: characterSpriteSets.guest.portrait,
+    maidPortrait: characterSpriteSets.maid.portrait,
+    guest202Portrait: characterSpriteSets.guest202.portrait,
+    guest203Portrait: characterSpriteSets.guest203.portrait,
+    guidePortrait: characterSpriteSets.guide.portrait,
     tray: makeItemSprite('tray'),
     phone: makeItemSprite('phone'),
     notebook: makeItemSprite('notebook'),
@@ -452,6 +465,8 @@ cellar: {
   }
 
   function changeArea(areaId, spawnKey) {
+    resetTransientInput();
+    state.transitionLock = 0.42;
     spawnAt(areaId, spawnKey);
     setStatus('エリア移動: ' + areas[areaId].name, 1.6);
     if (state.chaseActive && areaId === 'lobby' && !tasks.escapedGuide) {
@@ -482,7 +497,7 @@ cellar: {
       tasks.escapedGuide3 = true;
       state.step = 20;
       saveGame();
-      endGame('宵宿の最終記録', '赤い護符を帳場へ持ち帰ったことで、今夜の順番はひとまず途切れた。v17では、三日目の地下記録庫と最終追跡まで実装。次は救出分岐と脱出エンディングを足せます。');
+      endGame('宵宿の最終記録', '赤い護符を帳場へ持ち帰ったことで、今夜の順番はひとまず途切れた。v18では、追跡バグ修正・従業員室導線修正・3D風キャラ改善まで実装。次は救出分岐と脱出エンディングを足せます。');
     }
   }
 
@@ -505,7 +520,7 @@ cellar: {
     spawnAt('lobby', 'start');
     guide.active = false;
     setObjective('女将に話しかける');
-    setStatus('起動完了 / v17 3D Story Test', 3.0);
+    setStatus('起動完了 / v18 3D Character Test', 3.0);
     showDialogue([
       ['記録', '住み込み初日。館内は静かすぎるほど静かだ。'],
       ['記録', '今夜は客の話を拾うほど、深夜に調べられる範囲が増えていく。'],
@@ -532,7 +547,7 @@ cellar: {
 
   function saveGame() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(getSaveData()));
-    setStatus('保存した / v17', 1.8);
+    setStatus('保存した / v18', 1.8);
   }
 
   function loadGame() {
@@ -558,7 +573,9 @@ cellar: {
       promptBox.classList.add('hidden');
       state.ending = false;
       state.inDialogue = false;
-      setStatus('ロードした / v17', 1.8);
+      resetTransientInput();
+      state.transitionLock = 0.25;
+      setStatus('ロードした / v18', 1.8);
       return true;
     } catch (err) {
       setStatus('ロード失敗', 1.8);
@@ -872,6 +889,8 @@ cellar: {
       case 'room202Exit': changeArea('hall', 'fromRoom202'); break;
       case 'toRoom203': changeArea('room203', 'door'); break;
       case 'room203Exit': changeArea('hall', 'fromRoom203'); break;
+      case 'toStaff': changeArea('staff', 'door'); break;
+      case 'staffExit': changeArea('hall', 'fromStaff'); break;
       case 'toBath': changeArea('bath', 'door'); break;
       case 'bathExit': changeArea('hall', 'fromBath'); break;
       case 'toArchive': if (tasks.gotMasterKey) changeArea('archive', 'entry'); break;
@@ -1157,7 +1176,7 @@ cellar: {
   }
 
   function maybeAutoPortal() {
-    if (state.inDialogue || state.ending) return;
+    if (state.inDialogue || state.ending || state.transitionLock > 0) return;
     const portal = getNearbyPortal(true);
     if (!portal) return;
     if (!state.chaseActive && !lookInput.active && !moveInput.active && !keys.w && !keys.a && !keys.s && !keys.d) return;
@@ -1165,7 +1184,7 @@ cellar: {
   }
 
   function act() {
-    if (state.ending) return;
+    if (state.ending || state.transitionLock > 0) return;
     if (state.inDialogue) { advanceDialogue(); return; }
     const target = getNearbyInteraction();
     if (!target) return;
@@ -1289,8 +1308,17 @@ cellar: {
     } else if (kind === 'shrine') {
       o(30, 100, 68, 18, '#6a4827'); o(40, 54, 50, 46, '#9c2f34'); o(52, 34, 26, 20, '#d8c389');
     } else if (kind === 'archiveDoor' || kind === 'closedDoor' || kind === 'door') {
-      const main = kind === 'closedDoor' ? '#544d68' : '#8f5f48';
-      o(38, 28, 52, 110, main); o(46, 36, 36, 94, kind === 'closedDoor' ? '#73698e' : '#b47a61'); o(78, 84, 6, 6, '#d7c287');
+      const frame = kind === 'closedDoor' ? '#3b334d' : (kind === 'archiveDoor' ? '#4a382d' : '#53362a');
+      const front = kind === 'closedDoor' ? '#6d6484' : (kind === 'archiveDoor' ? '#8a6a53' : '#a06e58');
+      const panel = kind === 'closedDoor' ? '#887ea0' : (kind === 'archiveDoor' ? '#bb936d' : '#c88c6d');
+      x.fillStyle = 'rgba(0,0,0,.18)'; x.beginPath(); x.ellipse(64, 150, 34, 10, 0, 0, Math.PI*2); x.fill();
+      o(28, 20, 66, 122, frame);
+      x.fillStyle = '#291d18'; x.beginPath(); x.moveTo(94, 20); x.lineTo(110, 30); x.lineTo(110, 142); x.lineTo(94, 142); x.closePath(); x.fill();
+      o(36, 28, 56, 112, front);
+      o(44, 40, 18, 38, panel); o(66, 40, 18, 38, panel);
+      o(44, 88, 18, 42, panel); o(66, 88, 18, 42, panel);
+      o(82, 86, 6, 6, '#d7c287');
+      x.fillStyle = 'rgba(255,255,255,.08)'; x.fillRect(40, 32, 8, 102);
     }
     return c;
   }
@@ -1319,98 +1347,196 @@ cellar: {
     ctx.fillStyle = 'rgba(70,22,22,.18)'; ctx.fillRect(x - w*0.08, y + h*0.22, w*0.16, h*0.02);
   }
 
-  function drawBody(ctx, opts, portrait=false) {
-    const { body='#445', accent='#ccb', skirt=null, sleeve='#d8cab3', face='#efdcc7', hair='#222', eye='dark', helmet=false } = opts;
-    const w = portrait ? 180 : 140;
-    const h = portrait ? 220 : 250;
-    ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
+
+  function drawCharacterFigure(ctx, opts, portrait=false, view='front') {
+    const { body='#445', accent='#ccb', skirt=null, sleeve='#d8cab3', face='#efdcc7', hair='#222', eye='dark', helmet=false, flag=false } = opts;
+    const w = portrait ? 180 : 180;
+    const h = portrait ? 220 : 260;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     if (portrait) {
       const grad = ctx.createLinearGradient(0,0,0,h);
-      grad.addColorStop(0, 'rgba(18,24,33,.95)');
-      grad.addColorStop(1, 'rgba(6,9,15,.98)');
-      ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+      grad.addColorStop(0, 'rgba(18,24,33,.96)');
+      grad.addColorStop(1, 'rgba(6,9,15,.99)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,w,h);
     }
+
+    const cx = portrait ? 90 : 90;
+    const groundY = portrait ? 214 : 246;
+    const bodyTop = portrait ? 112 : 104;
+    const bodyBottom = portrait ? 182 : 194;
+    const headY = portrait ? 62 : 58;
+    const side = view === 'left' ? -1 : view === 'right' ? 1 : 0;
+    const isBack = view === 'back';
+
     ctx.save();
-    if (!portrait) ctx.translate(10, 0);
-    const cx = portrait ? 90 : 70;
-    const headY = portrait ? 62 : 44;
-    const headW = portrait ? 60 : 44;
-    const headH = portrait ? 72 : 52;
+    ctx.fillStyle = portrait ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.28)';
+    ctx.beginPath();
+    ctx.ellipse(cx, groundY-4, portrait ? 34 : 40, portrait ? 10 : 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     if (helmet) {
-      ctx.fillStyle = '#eef1f5';
-      ctx.beginPath(); ctx.ellipse(cx, headY-18, headW*0.62, headH*0.36, 0, Math.PI, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#d8dde6'; ctx.fillRect(cx - headW*0.62, headY - 18, headW*1.24, 10);
-      ctx.fillStyle = '#99a9ba'; ctx.fillRect(cx - 8, headY - 44, 16, 20);
+      ctx.fillStyle = '#eef2f6';
+      ctx.beginPath(); ctx.ellipse(cx, headY - 18, 34, 16, 0, Math.PI, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#d9dee8'; ctx.fillRect(cx - 35, headY - 18, 70, 10);
+      ctx.fillStyle = '#9aa9ba'; ctx.fillRect(cx - 8, headY - 42, 16, 20);
     }
-    drawHead(ctx, cx, headY, headW, headH, face, hair, eye);
+
+    if (!isBack) {
+      const faceGrad = ctx.createLinearGradient(cx, headY-24, cx, headY+24);
+      faceGrad.addColorStop(0, face);
+      faceGrad.addColorStop(1, 'rgba(120,86,72,.76)');
+      ctx.fillStyle = hair;
+      ctx.beginPath(); ctx.ellipse(cx, headY - 4, 36, 34, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = faceGrad;
+      ctx.beginPath(); ctx.ellipse(cx, headY + 2, side === 0 ? 28 : 22, 30, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.14)';
+      ctx.beginPath(); ctx.ellipse(cx - 10, headY - 5, 7, 5, -0.4, 0, Math.PI*2); ctx.fill();
+      const eyeColor = eye === 'red' ? '#8f2020' : '#141414';
+      ctx.fillStyle = eyeColor;
+      if (side === 0) {
+        ctx.fillRect(cx - 14, headY + 2, 8, 2);
+        ctx.fillRect(cx + 6, headY + 2, 8, 2);
+        ctx.fillStyle = '#80574a'; ctx.fillRect(cx - 1, headY + 10, 2, 9);
+        ctx.fillStyle = 'rgba(70,22,22,.20)'; ctx.fillRect(cx - 8, headY + 20, 16, 2);
+      } else {
+        ctx.fillRect(cx + side*4, headY + 2, 7, 2);
+        ctx.fillStyle = '#80574a'; ctx.fillRect(cx + side*8, headY + 10, 2, 8);
+      }
+    } else {
+      ctx.fillStyle = hair;
+      ctx.beginPath(); ctx.ellipse(cx, headY - 4, 35, 34, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#2c2420'; ctx.fillRect(cx - 20, headY + 8, 40, 8);
+    }
+
+    const leftFront = cx - 26;
+    const rightFront = cx + 26;
+    const sideOffset = 12;
     ctx.fillStyle = body;
     ctx.beginPath();
-    ctx.moveTo(cx - 34, portrait ? 116 : 92);
-    ctx.lineTo(cx + 34, portrait ? 116 : 92);
-    ctx.lineTo(cx + 26, portrait ? 198 : 170);
-    ctx.lineTo(cx - 26, portrait ? 198 : 170);
+    ctx.moveTo(leftFront, bodyTop);
+    ctx.lineTo(rightFront, bodyTop);
+    ctx.lineTo(rightFront - 8, bodyBottom);
+    ctx.lineTo(leftFront + 8, bodyBottom);
     ctx.closePath();
     ctx.fill();
+    ctx.fillStyle = shadeColor(body, -18);
+    ctx.beginPath();
+    ctx.moveTo(rightFront, bodyTop);
+    ctx.lineTo(rightFront + sideOffset, bodyTop + 8);
+    ctx.lineTo(rightFront + sideOffset - 6, bodyBottom + 4);
+    ctx.lineTo(rightFront - 8, bodyBottom);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    ctx.fillRect(leftFront + 4, bodyTop + 6, 6, bodyBottom - bodyTop - 18);
+
     ctx.fillStyle = sleeve;
-    ctx.fillRect(cx - 56, portrait ? 124 : 98, 18, portrait ? 54 : 48);
-    ctx.fillRect(cx + 38, portrait ? 124 : 98, 18, portrait ? 54 : 48);
-    if (accent) { ctx.fillStyle = accent; ctx.fillRect(cx - 20, portrait ? 130 : 106, 40, portrait ? 12 : 10); }
+    if (side === 0) {
+      ctx.fillRect(cx - 48, bodyTop + 8, 16, 52);
+      ctx.fillRect(cx + 32, bodyTop + 8, 16, 52);
+    } else {
+      ctx.fillRect(cx - 46, bodyTop + 10, 14, 50);
+      ctx.fillRect(cx + 22, bodyTop + 10, 20, 50);
+    }
+    ctx.fillStyle = shadeColor(sleeve, -12);
+    ctx.fillRect(cx + 32, bodyTop + 8, 6, 52);
+
+    if (accent) { ctx.fillStyle = accent; ctx.fillRect(cx - 18, bodyTop + 14, 36, 10); }
     if (skirt) {
       ctx.fillStyle = skirt;
       ctx.beginPath();
-      ctx.moveTo(cx - 28, portrait ? 172 : 146);
-      ctx.lineTo(cx + 28, portrait ? 172 : 146);
-      ctx.lineTo(cx + 22, portrait ? 216 : 204);
-      ctx.lineTo(cx - 22, portrait ? 216 : 204);
+      ctx.moveTo(cx - 24, bodyBottom - 20);
+      ctx.lineTo(cx + 24, bodyBottom - 20);
+      ctx.lineTo(cx + 18, groundY - 18);
+      ctx.lineTo(cx - 18, groundY - 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = shadeColor(skirt, -18);
+      ctx.beginPath();
+      ctx.moveTo(cx + 24, bodyBottom - 20);
+      ctx.lineTo(cx + 34, bodyBottom - 12);
+      ctx.lineTo(cx + 28, groundY - 14);
+      ctx.lineTo(cx + 18, groundY - 18);
       ctx.closePath();
       ctx.fill();
     }
-    ctx.fillStyle = portrait ? '#1a1c24' : '#191a1f';
-    ctx.fillRect(cx - 20, portrait ? 198 : 170, 14, portrait ? 24 : 38);
-    ctx.fillRect(cx + 6, portrait ? 198 : 170, 14, portrait ? 24 : 38);
-    if (opts.flag) {
-      ctx.fillStyle = '#d9d9d9'; ctx.fillRect(cx + 42, portrait ? 134 : 108, 6, portrait ? 68 : 66);
-      ctx.fillStyle = '#c33'; ctx.fillRect(cx + 48, portrait ? 136 : 110, portrait ? 32 : 28, portrait ? 18 : 16);
-      ctx.fillStyle = '#fff'; ctx.fillRect(cx + 48, portrait ? 154 : 126, portrait ? 32 : 28, portrait ? 18 : 16);
+
+    ctx.fillStyle = '#1a1c24';
+    ctx.fillRect(cx - 18, groundY - 42, 12, 34);
+    ctx.fillRect(cx + 6, groundY - 42, 12, 34);
+    ctx.fillStyle = '#2a2d36';
+    ctx.fillRect(cx - 20, groundY - 8, 16, 6);
+    ctx.fillRect(cx + 4, groundY - 8, 16, 6);
+
+    if (flag) {
+      ctx.fillStyle = '#d8d8d8'; ctx.fillRect(cx + 44, bodyTop + 12, 5, 70);
+      ctx.fillStyle = '#d23b3b'; ctx.fillRect(cx + 49, bodyTop + 14, 28, 16);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(cx + 49, bodyTop + 32, 28, 16);
     }
+
     if (!portrait) {
-      ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 2; ctx.strokeRect(8, 6, ctx.canvas.width - 26, ctx.canvas.height - 12);
+      ctx.strokeStyle = 'rgba(0,0,0,.22)';
+      ctx.strokeRect(18, 10, ctx.canvas.width - 36, ctx.canvas.height - 20);
     }
     ctx.restore();
   }
 
-  function makeCharacterSprite(kind, portrait=false) {
+  function shadeColor(hex, amount) {
+    if (!hex || !hex.startsWith('#')) return hex;
+    let col = hex.slice(1);
+    if (col.length === 3) col = col.split('').map(c => c + c).join('');
+    const num = int(col, 16);
+    const r = max(0, min(255, (num >> 16) + amount));
+    const g = max(0, min(255, ((num >> 8) & 255) + amount));
+    const b = max(0, min(255, (num & 255) + amount));
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function int(v, base) { return parseInt(v, base); }
+  function min(a, b) { return Math.min(a, b); }
+  function max(a, b) { return Math.max(a, b); }
+
+  function makeCharacterSprite(kind, portrait=false, view='front') {
     const c = document.createElement('canvas');
-    c.width = portrait ? 180 : 160;
+    c.width = portrait ? 180 : 180;
     c.height = portrait ? 220 : 260;
     const x = c.getContext('2d');
     x.imageSmoothingEnabled = false;
-    if (kind === 'okami') {
-      drawBody(x, { face:'#efdcc7', hair:'#2b2430', body:'#4f3042', accent:'#d1a267', sleeve:'#efdcc7', skirt:'#2d2333' }, portrait);
-    } else if (kind === 'guest') {
-      drawBody(x, { face:'#efddc9', hair:'#23262f', body:'#5f6ca0', accent:'#d9dbe8', sleeve:'#efddc9', skirt:'#4a5681' }, portrait);
-    } else if (kind === 'maid') {
-      drawBody(x, { face:'#efdcc7', hair:'#f3f3f1', body:'#335c88', accent:'#e8eef8', sleeve:'#efdcc7', skirt:'#1d3048' }, portrait);
-    } else if (kind === 'guest202') {
-      drawBody(x, { face:'#f0ddc9', hair:'#403126', body:'#6f5a45', accent:'#c9b89a', sleeve:'#f0ddc9', skirt:'#514234' }, portrait);
-    } else if (kind === 'guest203') {
-      drawBody(x, { face:'#edd9c4', hair:'#1b1f26', body:'#737b87', accent:'#d7dee8', sleeve:'#edd9c4', skirt:'#49505b' }, portrait);
-    } else if (kind === 'guide') {
-      drawBody(x, { face:'#e7dccf', hair:'#4a545f', body:'#2d4b6b', accent:'#eef1f5', sleeve:'#d6d9df', skirt:'#223447', eye:'red', helmet:true, flag:true }, portrait);
-      if (portrait) {
-        x.fillStyle = 'rgba(215,100,100,.18)';
-        x.fillRect(0,0,c.width,c.height);
-      }
-    } else if (kind === 'narrator') {
+    const defs = {
+      okami: { face:'#efdcc7', hair:'#2b2430', body:'#4f3042', accent:'#d1a267', sleeve:'#efdcc7', skirt:'#2d2333' },
+      guest: { face:'#efddc9', hair:'#23262f', body:'#5f6ca0', accent:'#d9dbe8', sleeve:'#efddc9', skirt:'#4a5681' },
+      maid: { face:'#efdcc7', hair:'#f3f3f1', body:'#335c88', accent:'#e8eef8', sleeve:'#efdcc7', skirt:'#1d3048' },
+      guest202: { face:'#f0ddc9', hair:'#403126', body:'#6f5a45', accent:'#c9b89a', sleeve:'#f0ddc9', skirt:'#514234' },
+      guest203: { face:'#edd9c4', hair:'#1b1f26', body:'#737b87', accent:'#d7dee8', sleeve:'#edd9c4', skirt:'#49505b' },
+      guide: { face:'#e7dccf', hair:'#4a545f', body:'#2d4b6b', accent:'#eef1f5', sleeve:'#d6d9df', skirt:'#223447', eye:'red', helmet:true, flag:true },
+    };
+    if (kind === 'narrator') {
       const grad = x.createLinearGradient(0,0,0,c.height);
       grad.addColorStop(0, 'rgba(20,28,40,.95)'); grad.addColorStop(1, 'rgba(5,8,13,.98)');
       x.fillStyle = grad; x.fillRect(0,0,c.width,c.height);
       x.fillStyle = '#cfaa74'; x.font = 'bold 44px sans-serif'; x.fillText('宵', 60, 110); x.fillText('宿', 60, 160);
+      return c;
+    }
+    drawCharacterFigure(x, defs[kind], portrait, view);
+    if (kind === 'guide' && portrait) {
+      x.fillStyle = 'rgba(215,100,100,.18)';
+      x.fillRect(0,0,c.width,c.height);
     }
     return c;
   }
 
-  function makePortrait(kind) { return makeCharacterSprite(kind, true); }
+  function makeCharacterSet(kind) {
+    return {
+      front: makeCharacterSprite(kind, false, 'front'),
+      left: makeCharacterSprite(kind, false, 'left'),
+      right: makeCharacterSprite(kind, false, 'right'),
+      back: makeCharacterSprite(kind, false, 'back'),
+      portrait: makeCharacterSprite(kind, true, 'front')
+    };
+  }
+
+  function makePortrait(kind) { return makeCharacterSprite(kind, true, 'front'); }
 
   function drawScene(dt) {
     const area = currentArea();
@@ -1511,8 +1637,32 @@ cellar: {
     g.fillRect(x, y, w, h);
   }
 
+
+  function drawProjectedShadow(proj, scale = 1) {
+    const w = Math.min(OFF_W * 0.22, (OFF_W / Math.max(0.18, proj.corrected)) * 0.18 * scale);
+    const h = w * 0.36;
+    const x = proj.screenX - w / 2;
+    const y = OFF_H / 2 + Math.min(OFF_H * 0.34, (OFF_H / Math.max(0.18, proj.corrected)) * 0.55);
+    g.fillStyle = 'rgba(0,0,0,.22)';
+    g.beginPath();
+    g.ellipse(proj.screenX, y, w / 2, h / 2, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  function getCharacterView(sprite) {
+    const set = characterSpriteSets[sprite.kind];
+    if (!set) return null;
+    const facing = sprite.facing ?? (Math.PI / 2);
+    const angleToPlayer = Math.atan2(player.y - sprite.y, player.x - sprite.x);
+    const rel = normalizeAngle(angleToPlayer - facing);
+    if (rel > Math.PI * 0.75 || rel < -Math.PI * 0.75) return set.back;
+    if (rel > Math.PI * 0.25 && rel < Math.PI * 0.75) return set.right;
+    if (rel < -Math.PI * 0.25 && rel > -Math.PI * 0.75) return set.left;
+    return set.front;
+  }
+
   function drawSprites(zBuffer) {
-    const sprites = activeSprites().filter(s => s.kind && spriteCanvases[s.kind]);
+    const sprites = activeSprites().filter(s => s.kind && (spriteCanvases[s.kind] || characterSpriteSets[s.kind]));
     const projected = [];
     for (const s of sprites) {
       const proj = project(s.x, s.y);
@@ -1521,8 +1671,9 @@ cellar: {
     }
     projected.sort((a, b) => b.proj.corrected - a.proj.corrected);
     for (const s of projected) {
-      const spriteCanvas = spriteCanvases[s.kind];
-      const scale = s.kind === 'guide' ? 1.32 : s.type === 'item' ? 0.95 : 1.18;
+      const spriteCanvas = characterSpriteSets[s.kind] ? getCharacterView(s) : spriteCanvases[s.kind];
+      if (!spriteCanvas) continue;
+      const scale = s.kind === 'guide' ? 1.38 : s.type === 'item' ? 0.95 : 1.24;
       const h = Math.min(OFF_H * 1.8, (OFF_H / Math.max(0.08, s.proj.corrected)) * scale);
       const w = h * (spriteCanvas.width / spriteCanvas.height);
       const x = Math.floor(s.proj.screenX - w / 2);
@@ -1533,6 +1684,7 @@ cellar: {
         if (s.proj.corrected < zBuffer[sx] + 0.12) { visible = true; break; }
       }
       if (!visible) continue;
+      if (characterSpriteSets[s.kind]) drawProjectedShadow(s.proj, scale);
       drawSpriteCanvas(s.proj, spriteCanvas, scale);
     }
   }
@@ -1649,7 +1801,8 @@ function drawVignette() {
   }
 
   function update(dt) {
-    if (!state.inDialogue && !state.menuOpen && !state.ending) {
+    if (state.transitionLock > 0) state.transitionLock = Math.max(0, state.transitionLock - dt);
+    if (!state.inDialogue && !state.menuOpen && !state.ending && state.transitionLock <= 0) {
       const speed = player.speed * (keys.shift ? 1.34 : 1);
       const moveForward = (keys.w ? 1 : 0) - (keys.s ? 1 : 0) + (-moveInput.y);
       const moveSide = (keys.d ? 1 : 0) - (keys.a ? 1 : 0) + moveInput.x;
@@ -1704,7 +1857,7 @@ function drawVignette() {
     if (movePad.contains(e.target)) return;
     if (dialogueBox.contains(e.target)) return;
     if (menuPanel.contains(e.target)) return;
-    if (x > rect.width * 0.45 && !state.inDialogue && !state.menuOpen) {
+    if (x > rect.width * 0.45 && !state.inDialogue && !state.menuOpen && state.transitionLock <= 0) {
       lookInput.active = true;
       lookInput.lastX = e.clientX;
       lookInput.pointerId = e.pointerId;

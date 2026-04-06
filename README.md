@@ -1,4 +1,4 @@
-# 宵宿 v17 3D Story Test
+# 宵宿 v18 3D Fix Test
 
 - GitHub Pages / itch.io HTML5 向けの軽量3D風ホラー試験版
 - 横画面前提
