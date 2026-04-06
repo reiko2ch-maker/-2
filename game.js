@@ -5,8 +5,8 @@
 
   const ctx = canvas.getContext('2d', { alpha: false });
   const off = document.createElement('canvas');
-  const OFF_W = 420;
-  const OFF_H = 236;
+  const OFF_W = 560;
+  const OFF_H = 315;
   off.width = OFF_W;
   off.height = OFF_H;
   const g = off.getContext('2d', { alpha: false });
@@ -29,6 +29,7 @@
   const dialogueText = document.getElementById('dialogueText');
   const speakerLabel = document.getElementById('speakerLabel');
   const menuBtn = document.getElementById('menuBtn');
+  const distanceBox = document.getElementById('distanceBox');
   const menuPanel = document.getElementById('menuPanel');
   const saveBtn = document.getElementById('saveBtn');
   const loadBtn = document.getElementById('loadBtn');
@@ -40,7 +41,7 @@
   const movePad = document.getElementById('movePad');
   const moveKnob = document.getElementById('moveKnob');
 
-  const STORAGE_KEY = 'yoinado_v16_overdrive_save';
+  const STORAGE_KEY = 'yoinado_v17_3d_story_save';
   const FOV = Math.PI / 3.0;
   const MAX_DEPTH = 26;
 
@@ -85,6 +86,10 @@
     gotFilm: false,
     escapedGuide2: false,
     finalTalked: false,
+    day3Started: false,
+    talkedGuestAgain: false,
+    gotBasementCharm: false,
+    escapedGuide3: false,
   };
 
   const player = {
@@ -351,6 +356,25 @@ annex: {
   ],
   spawns: { entry: { x: 2.0, y: 8.0, a: 0 } },
   signs: [{ x: 8.5, y: 1.8, text: '離れ通路' }, { x: 16.0, y: 6.6, text: '記録保管棚' }]
+},
+cellar: {
+  name: '地下記録庫',
+  skyTop: '#07080c', skyBottom: '#121820',
+  floorA: '#3d372f', floorB: '#2f2a23', ceilA: '#111317', ceilB: '#090b0f',
+  map: [
+    '####################',
+    '#....NNNN..........#',
+    '#..................#',
+    '#....KKKK..........#',
+    '#..................#',
+    '#.........TT.......#',
+    '#..................#',
+    '#..............SS..#',
+    '#..................#',
+    '####################'
+  ],
+  spawns: { entry: { x: 2.0, y: 8.0, a: 0 } },
+  signs: [{ x: 8.2, y: 1.8, text: '地下記録庫' }, { x: 14.4, y: 7.4, text: '祭具棚' }]
 }
 
   };
@@ -452,6 +476,14 @@ annex: {
         ['記録', '女将は逃げてくることを見越していたように、帳場の灯りだけを明るくして立っていた。']
       ]);
     }
+    if (state.chaseActive && areaId === 'lobby' && tasks.gotBasementCharm && !tasks.escapedGuide3) {
+      state.chaseActive = false;
+      guide.active = false;
+      tasks.escapedGuide3 = true;
+      state.step = 20;
+      saveGame();
+      endGame('宵宿の最終記録', '赤い護符を帳場へ持ち帰ったことで、今夜の順番はひとまず途切れた。v17では、三日目の地下記録庫と最終追跡まで実装。次は救出分岐と脱出エンディングを足せます。');
+    }
   }
 
   function startNew() {
@@ -473,7 +505,7 @@ annex: {
     spawnAt('lobby', 'start');
     guide.active = false;
     setObjective('女将に話しかける');
-    setStatus('起動完了 / v16 Overdrive Web', 3.0);
+    setStatus('起動完了 / v17 3D Story Test', 3.0);
     showDialogue([
       ['記録', '住み込み初日。館内は静かすぎるほど静かだ。'],
       ['記録', '今夜は客の話を拾うほど、深夜に調べられる範囲が増えていく。'],
@@ -500,7 +532,7 @@ annex: {
 
   function saveGame() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(getSaveData()));
-    setStatus('保存した / v16', 1.8);
+    setStatus('保存した / v17', 1.8);
   }
 
   function loadGame() {
@@ -526,7 +558,7 @@ annex: {
       promptBox.classList.add('hidden');
       state.ending = false;
       state.inDialogue = false;
-      setStatus('ロードした / v16', 1.8);
+      setStatus('ロードした / v17', 1.8);
       return true;
     } catch (err) {
       setStatus('ロード失敗', 1.8);
@@ -787,15 +819,47 @@ annex: {
         break;
       case 'okami3':
         showDialogue([
-          ['女将', 'フィルムまで見てしまったのですね。なら、もう宿の外側の話はできません。'],
-          ['女将', 'この旅館は、消えた客を隠しているんじゃない。順番を守り続けないと、館内そのものが夜に飲まれるんです。'],
-          ['女将', 'あなたが記録を持ち出すなら、私は残る。宿泊客を連れて逃げるなら、もう一度閉鎖棟へ戻りなさい。'],
-          ['記録', '夜はまだ終わっていない。だが少なくとも、この宿が何を守っていたのかだけは見えた。']
+          ['女将', 'フィルムまで見たなら、最後の記録を確かめなさい。'],
+          ['女将', '地下記録庫には、誘導が始まった最初の夜の護符が残っています。'],
+          ['女将', '201号室の客は、その場所だけを知っている。朝になる前に聞きに行きなさい。'],
+          ['記録', '二日目は終わっていない。女将の言葉で、夜は三日目へ滑り込んだ。']
         ], () => {
           tasks.finalTalked = true;
+          tasks.day3Started = true;
+          state.day = 3;
+          dayLabel.textContent = 'DAY 3';
+          state.phase = 'night';
+          phaseLabel.textContent = '深夜調査';
           state.step = 17;
-          saveGame();
-          endGame('二日目の記録', 'DAY2まで到達。従業員室、203号室、中庭、離れ通路、第二追跡まで実装した長編拡張版です。次は救出ルート、女将側ルート、宿からの脱出ルートの分岐に伸ばせます。');
+          spawnAt('lobby', 'start');
+          setObjective('201号室の客に地下記録庫のことを聞く');
+          setStatus('三日目: 最終夜が始まった', 2.6);
+        });
+        break;
+      case 'guestAgain':
+        showDialogue([
+          ['201号室の客', '地下の記録庫なら、閉鎖棟の一番奥だ。赤い護符が残っている。'],
+          ['201号室の客', 'あれを持って帳場へ戻れ。誘導員は最後に一番短い道を塞いでくる。'],
+          ['201号室の客', 'もし見つかったら、迷わず閉鎖棟から帳場へ走れ。立ち止まるな。']
+        ], () => {
+          tasks.talkedGuestAgain = true;
+          state.step = 18;
+          setObjective('閉鎖棟の地下記録庫で赤い護符を探す');
+          setStatus('地下記録庫が開いた');
+        });
+        break;
+      case 'basementCharm':
+        showDialogue([
+          ['記録', '祭具棚の奥から、煤けた赤い護符が出てきた。'],
+          ['記録', '裏には今夜の帳場の見取り図と、逃げ道に丸が付いている。'],
+          ['誘導員', '最後の順番だ。』']
+        ], () => {
+          tasks.gotBasementCharm = true;
+          state.step = 19;
+          state.chaseActive = true;
+          syncGuideSpawnForArea(player.area);
+          setObjective('誘導員から逃げて帳場へ戻る');
+          setStatus('最終追跡開始: 帳場へ逃げろ', 3.0);
         });
         break;
       case 'toHall': changeArea('hall', 'fromLobby'); break;
@@ -812,12 +876,15 @@ annex: {
       case 'bathExit': changeArea('hall', 'fromBath'); break;
       case 'toArchive': if (tasks.gotMasterKey) changeArea('archive', 'entry'); break;
       case 'archiveExit': changeArea('hall', 'fromArchive'); break;
+      case 'archiveExitFar': changeArea('hall', 'fromArchive'); break;
       case 'toCourtyard': if (tasks.heard203 || tasks.checkedCourtyard || tasks.gotFilm) changeArea('courtyard', 'door'); break;
       case 'courtyardExit': changeArea('hall', 'fromCourtyard'); break;
       case 'toAnnex': if (tasks.checkedCourtyard) changeArea('annex', 'entry'); break;
       case 'annexExit': changeArea('courtyard', 'door'); break;
-      case 'toClosedWing': if (tasks.talkedOkamiAgain) changeArea('closedWing', 'entry'); break;
+      case 'toClosedWing': if (tasks.talkedOkamiAgain || tasks.day3Started) changeArea('closedWing', 'entry'); break;
       case 'closedWingExit': changeArea('hall', 'fromClosedWing'); break;
+      case 'toCellar': if (tasks.day3Started) changeArea('cellar', 'entry'); break;
+      case 'cellarExit': changeArea('closedWing', 'entry'); break;
       case 'shrine':
         showDialogue([
           ['記録', '祭壇には使い古された誘導旗と、白いヘルメットの写真が置かれている。'],
@@ -846,6 +913,7 @@ annex: {
       room203: { x: 136, y: 54, w: 48, h: 22, label: '203' },
       courtyard: { x: 238, y: 68, w: 62, h: 20, label: '中庭' },
       annex: { x: 238, y: 38, w: 62, h: 20, label: '離れ' },
+      cellar: { x: 156, y: 92, w: 74, h: 20, label: '地下' },
     };
   }
 
@@ -865,7 +933,61 @@ annex: {
     if (state.step === 14) return 'courtyard';
     if (state.step === 15) return 'annex';
     if (state.step === 16) return 'lobby';
+    if (state.step === 17) return 'room201';
+    if (state.step === 18) return 'cellar';
+    if (state.step === 19) return 'lobby';
     return player.area;
+  }
+
+
+  function objectiveTargetId() {
+    switch (state.step) {
+      case 0: return 'okami';
+      case 1: return 'tray';
+      case 2: return 'guest';
+      case 3: return 'maid';
+      case 4: return 'phone';
+      case 5: return 'mirror';
+      case 6: return 'guest202';
+      case 7: return 'key';
+      case 8: return 'notebook';
+      case 9: return 'toLobby';
+      case 10: return tasks.checkedClosedWing ? 'ledger' : 'shrine';
+      case 12: return 'maid2';
+      case 13: return 'guest203';
+      case 14: return 'lantern';
+      case 15: return 'film';
+      case 16: return 'okami3';
+      case 17: return 'guestAgain';
+      case 18: return 'basementCharm';
+      case 19: return 'toLobby';
+      default: return null;
+    }
+  }
+
+  function objectiveTargetSprite() {
+    const id = objectiveTargetId();
+    if (!id) return null;
+    return activeSprites().find(s => s.id === id) || null;
+  }
+
+  function approximateObjectiveDistance() {
+    const target = objectiveTargetSprite();
+    if (target) return Math.hypot(target.x - player.x, target.y - player.y) * 2.2;
+    const layout = areaMapLayout();
+    const here = layout[player.area];
+    const there = layout[miniMapObjectiveArea()];
+    if (!here || !there) return 0;
+    const hx = here.x + here.w / 2, hy = here.y + here.h / 2;
+    const tx = there.x + there.w / 2, ty = there.y + there.h / 2;
+    return Math.hypot(tx - hx, ty - hy) * 0.35 + 4;
+  }
+
+  function updateDistanceBox() {
+    if (!distanceBox) return;
+    const d = Math.max(0, approximateObjectiveDistance());
+    const areaName = objectiveTargetSprite()?.area === player.area ? '目標' : areas[miniMapObjectiveArea()]?.name || '目標';
+    distanceBox.textContent = `${areaName} 約${Math.round(d)}m`;
   }
 
   function drawMiniMap() {
@@ -922,6 +1044,9 @@ annex: {
     } else if (areaId === 'courtyard') {
       guide.x = 14.5; guide.y = 2.2;
       guide.active = true;
+    } else if (areaId === 'cellar') {
+      guide.x = 16.4; guide.y = 2.2;
+      guide.active = true;
     } else {
       guide.active = false;
     }
@@ -968,7 +1093,8 @@ annex: {
     push({ type:'portal', id:'staffExit', area:'staff', x:10.8, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
     push({ type:'npc', id:'maid2', area:'staff', x:5.6, y:4.0, kind:'maid', prompt:'仲居・篠に話しかける', active: tasks.day2Started && !tasks.talkedMaidDay2 });
 
-    push({ type:'portal', id:'archiveExit', area:'archive', x:12.8, y:7.1, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
+    push({ type:'portal', id:'archiveExit', area:'archive', x:2.1, y:7.0, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
+    push({ type:'portal', id:'archiveExitFar', area:'archive', x:12.8, y:7.1, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
     push({ type:'item', id:'notebook', area:'archive', x:4.6, y:4.2, kind:'notebook', prompt:'青いノートを拾う', active: tasks.gotMasterKey && !tasks.gotNotebook });
     push({ type:'npc', id:'guide', area:'archive', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'archive' });
 
@@ -982,10 +1108,15 @@ annex: {
     push({ type:'npc', id:'guide', area:'annex', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'annex' });
 
     push({ type:'portal', id:'closedWingExit', area:'closedWing', x:1.6, y:8.0, kind:'closedDoor', prompt:'廊下へ戻る', active: true });
+    push({ type:'portal', id:'toCellar', area:'closedWing', x:15.0, y:8.0, kind:'archiveDoor', prompt:'地下記録庫へ降りる', active: tasks.day3Started && !tasks.gotBasementCharm });
     push({ type:'item', id:'shrine', area:'closedWing', x:14.6, y:4.1, kind:'shrine', prompt:'祭壇を調べる', active: tasks.talkedOkamiAgain && !tasks.checkedClosedWing });
     push({ type:'item', id:'ledger', area:'closedWing', x:6.0, y:6.1, kind:'ledger', prompt:'古い台帳を読む', active: tasks.checkedClosedWing && !tasks.readLedger });
     push({ type:'npc', id:'guide', area:'closedWing', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'closedWing' });
     push({ type:'npc', id:'okami3', area:'lobby', x:5.7, y:6.2, kind:'okami', prompt:'女将に話しかける', active: tasks.escapedGuide2 && !tasks.finalTalked });
+    push({ type:'npc', id:'guestAgain', area:'room201', x:7.4, y:3.1, kind:'guest', prompt:'201号室の客に話しかける', active: tasks.day3Started && !tasks.talkedGuestAgain });
+    push({ type:'portal', id:'cellarExit', area:'cellar', x:2.0, y:8.0, kind:'archiveDoor', prompt:'閉鎖棟へ戻る', active: true });
+    push({ type:'item', id:'basementCharm', area:'cellar', x:10.0, y:5.4, kind:'film', prompt:'赤い護符を拾う', active: tasks.talkedGuestAgain && !tasks.gotBasementCharm });
+    push({ type:'npc', id:'guide', area:'cellar', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'cellar' });
 
     return list.filter(s => s.active);
   }
@@ -1005,6 +1136,32 @@ annex: {
       if (d < nearestDist) { nearest = s; nearestDist = d; }
     }
     return nearest;
+  }
+
+
+  function getNearbyPortal(autoOnly=false) {
+    const sprites = activeSprites();
+    let nearest = null;
+    let nearestDist = 999;
+    for (const s of sprites) {
+      if (s.type !== 'portal') continue;
+      const d = Math.hypot(s.x - player.x, s.y - player.y);
+      if (d > (state.chaseActive ? 1.05 : 0.72)) continue;
+      if (!autoOnly) {
+        const ang = normalizeAngle(Math.atan2(s.y - player.y, s.x - player.x) - player.a);
+        if (!state.chaseActive && Math.abs(ang) > 1.35) continue;
+      }
+      if (d < nearestDist) { nearest = s; nearestDist = d; }
+    }
+    return nearest;
+  }
+
+  function maybeAutoPortal() {
+    if (state.inDialogue || state.ending) return;
+    const portal = getNearbyPortal(true);
+    if (!portal) return;
+    if (!state.chaseActive && !lookInput.active && !moveInput.active && !keys.w && !keys.a && !keys.s && !keys.d) return;
+    scriptedStepAction(portal.id);
   }
 
   function act() {
@@ -1139,22 +1296,27 @@ annex: {
   }
 
   function drawHead(ctx, x, y, w, h, skin, hair, eye='dark') {
+    const faceGrad = ctx.createLinearGradient(x, y-h*0.3, x, y+h*0.5);
+    faceGrad.addColorStop(0, skin);
+    faceGrad.addColorStop(1, 'rgba(120,86,72,.75)');
     ctx.fillStyle = hair;
     ctx.beginPath();
     ctx.ellipse(x, y - 4, w * 0.54, h * 0.56, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = skin;
+    ctx.fillStyle = faceGrad;
     ctx.beginPath();
     ctx.ellipse(x, y + 2, w * 0.42, h * 0.48, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.fillStyle = 'rgba(255,255,255,.18)';
     ctx.beginPath(); ctx.ellipse(x - w*0.14, y - h*0.05, w*0.12, h*0.09, -0.5, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = eye === 'red' ? '#7b2020' : '#121212';
-    ctx.fillRect(x - w*0.17, y, w*0.08, h*0.035);
-    ctx.fillRect(x + w*0.09, y, w*0.08, h*0.035);
+    ctx.fillStyle = eye === 'red' ? '#8f2020' : '#121212';
+    ctx.fillRect(x - w*0.17, y, w*0.09, h*0.04);
+    ctx.fillRect(x + w*0.08, y, w*0.09, h*0.04);
+    ctx.fillStyle = 'rgba(40,25,18,.25)'; ctx.fillRect(x - w*0.2, y - h*0.06, w*0.14, h*0.02); ctx.fillRect(x + w*0.06, y - h*0.06, w*0.14, h*0.02);
     ctx.fillStyle = '#80574a';
     ctx.fillRect(x - w*0.02, y + h*0.12, w*0.04, h*0.11);
-    ctx.fillRect(x - w*0.09, y + h*0.22, w*0.18, h*0.03);
+    ctx.fillRect(x - w*0.09, y + h*0.24, w*0.18, h*0.03);
+    ctx.fillStyle = 'rgba(70,22,22,.18)'; ctx.fillRect(x - w*0.08, y + h*0.22, w*0.16, h*0.02);
   }
 
   function drawBody(ctx, opts, portrait=false) {
@@ -1260,6 +1422,7 @@ annex: {
     g.fillStyle = floorGrad; g.fillRect(0, OFF_H / 2, OFF_W, OFF_H / 2);
 
     drawFloorPattern(area);
+    drawCeilingBeams(area);
     const zBuffer = new Array(OFF_W).fill(MAX_DEPTH);
 
     for (let x = 0; x < OFF_W; x++) {
@@ -1300,12 +1463,29 @@ annex: {
   }
 
   function drawFloorPattern(area) {
-    for (let y = OFF_H/2; y < OFF_H; y += 4) {
-      g.fillStyle = y % 8 === 0 ? area.floorA : area.floorB;
+    for (let y = OFF_H/2; y < OFF_H; y += 3) {
+      const t = (y - OFF_H/2) / (OFF_H/2);
+      g.fillStyle = t > .65 ? area.floorB : (y % 6 === 0 ? area.floorA : area.floorB);
       g.fillRect(0, y, OFF_W, 1);
+      if (y % 18 === 0) {
+        g.fillStyle = 'rgba(255,255,255,.025)';
+        g.fillRect(0, y, OFF_W, 1);
+      }
     }
-    g.fillStyle = 'rgba(0,0,0,.08)';
-    for (let x = 0; x < OFF_W; x += 18) g.fillRect(x, OFF_H/2, 2, OFF_H/2);
+    g.strokeStyle = 'rgba(0,0,0,.10)';
+    for (let x = 0; x < OFF_W; x += 22) {
+      g.beginPath();
+      g.moveTo(x, OFF_H/2);
+      g.lineTo(OFF_W/2 + (x-OFF_W/2)*1.9, OFF_H);
+      g.stroke();
+    }
+  }
+
+  function drawCeilingBeams(area) {
+    g.fillStyle = 'rgba(0,0,0,.12)';
+    for (let y = 14; y < OFF_H/2; y += 18) g.fillRect(0, y, OFF_W, 2);
+    g.fillStyle = 'rgba(255,230,170,.02)';
+    g.fillRect(0, 0, OFF_W, OFF_H/2);
   }
 
   function project(wx, wy) {
@@ -1452,7 +1632,7 @@ function drawVignette() {
     const dy = player.y - guide.y;
     const d = Math.hypot(dx, dy);
     if (d < 0.58) {
-      endGame('誘導員に捕まった', '青いノートを持ったまま順番から外れたあなたを、白ヘルメットの誘導員が静かに回収した。v16では、宿帳庫と離れ通路の二段階追跡がゲームオーバー条件付きで入っています。');
+      endGame('誘導員に捕まった', '青いノートを持ったまま順番から外れたあなたを、白ヘルメットの誘導員が静かに回収した。v17では、宿帳庫・離れ通路・地下記録庫の三段階追跡がゲームオーバー条件付きで入っています。');
       return;
     }
     const move = guide.speed * dt;
@@ -1483,6 +1663,7 @@ function drawVignette() {
     }
 
     updateGuide(dt);
+    maybeAutoPortal();
 
     const n = (!state.inDialogue && !state.ending) ? getNearbyInteraction() : null;
     state.nearby = n;
@@ -1500,6 +1681,7 @@ function drawVignette() {
       statusBox.style.opacity = '0.35';
     }
 
+    updateDistanceBox();
     drawMiniMap();
     drawFrame(dt);
   }
