@@ -1,1982 +1,1069 @@
-
-(function () {
-  const canvas = document.getElementById('gameCanvas');
-  if (!canvas) return;
-
-  const ctx = canvas.getContext('2d', { alpha: false });
-  const off = document.createElement('canvas');
-  const OFF_W = 560;
-  const OFF_H = 315;
-  off.width = OFF_W;
-  off.height = OFF_H;
-  const g = off.getContext('2d', { alpha: false });
-  g.imageSmoothingEnabled = false;
-
-  const mapCanvas = document.getElementById('miniMap');
-  const mapCtx = mapCanvas.getContext('2d', { alpha: false });
-  const portraitCanvas = document.getElementById('portraitCanvas');
-  const portraitCtx = portraitCanvas.getContext('2d', { alpha: true });
-  portraitCtx.imageSmoothingEnabled = false;
-
-  const hud = document.getElementById('hud');
-  const dayLabel = document.getElementById('dayLabel');
-  const phaseLabel = document.getElementById('phaseLabel');
-  const areaLabel = document.getElementById('areaLabel');
-  const objectiveBox = document.getElementById('objectiveBox');
-  const promptBox = document.getElementById('promptBox');
-  const statusBox = document.getElementById('statusBox');
-  const dialogueBox = document.getElementById('dialogueBox');
-  const dialogueText = document.getElementById('dialogueText');
-  const speakerLabel = document.getElementById('speakerLabel');
-  const menuBtn = document.getElementById('menuBtn');
-  const distanceBox = document.getElementById('distanceBox');
-  const menuPanel = document.getElementById('menuPanel');
-  const saveBtn = document.getElementById('saveBtn');
-  const loadBtn = document.getElementById('loadBtn');
-  const hudToggleBtn = document.getElementById('hudToggleBtn');
-  const endingScreen = document.getElementById('endingScreen');
-  const endingTitle = document.getElementById('endingTitle');
-  const endingText = document.getElementById('endingText');
-  const actBtn = document.getElementById('actBtn');
-  const movePad = document.getElementById('movePad');
-  const moveKnob = document.getElementById('moveKnob');
-
-  const STORAGE_KEY = 'yoinado_v18_3d_story_save';
-  const FOV = Math.PI / 3.0;
-  const MAX_DEPTH = 26;
-
-  const state = {
-    step: 0,
-    day: 1,
-    phase: 'day',
-    objective: '女将に話しかける',
-    inDialogue: false,
-    dialogueQueue: [],
-    dialogueOnEnd: null,
-    nearby: null,
-    ending: false,
-    hudMinimal: false,
-    pulse: 0,
-    areaFlash: 0,
-    menuOpen: false,
-    chaseActive: false,
-    chasedBefore: false,
-    lastStatusTimer: 0,
-    portraitKind: 'narrator',
-    transitionLock: 0,
-  };
-
-  const tasks = {
-    talkedOkami: false,
-    gotTray: false,
-    servedGuest: false,
-    talkedMaid: false,
-    answeredPhone: false,
-    checkedBath: false,
-    heard202: false,
-    gotMasterKey: false,
-    gotNotebook: false,
-    escapedGuide: false,
-    talkedOkamiAgain: false,
-    checkedClosedWing: false,
-    readLedger: false,
-    day2Started: false,
-    talkedMaidDay2: false,
-    heard203: false,
-    checkedCourtyard: false,
-    gotFilm: false,
-    escapedGuide2: false,
-    finalTalked: false,
-    day3Started: false,
-    talkedGuestAgain: false,
-    gotBasementCharm: false,
-    escapedGuide3: false,
-  };
-
-  const player = {
-    x: 2.4,
-    y: 8.6,
-    a: -0.05,
-    area: 'lobby',
-    radius: 0.18,
-    speed: 2.3,
-  };
-
-  const guide = {
-    x: 10.0,
-    y: 2.0,
-    area: 'archive',
-    active: false,
-    speed: 1.18,
-  };
-
-  const keys = { w:false, a:false, s:false, d:false, shift:false };
-  const moveInput = { active:false, x:0, y:0, pointerId:null };
-  const lookInput = { active:false, lastX:0, pointerId:null, dx:0 };
-
-  function resetTransientInput() {
-    keys.w = false; keys.a = false; keys.s = false; keys.d = false; keys.shift = false;
-    moveInput.active = false; moveInput.x = 0; moveInput.y = 0; moveInput.pointerId = null;
-    lookInput.active = false; lookInput.pointerId = null; lookInput.dx = 0;
-    if (typeof moveKnob !== 'undefined' && moveKnob) {
-      moveKnob.style.left = '50%';
-      moveKnob.style.top = '50%';
-    }
-  }
-
-  const areas = {
-    lobby: {
-      name: '帳場',
-      skyTop: '#191a24', skyBottom: '#6c5034',
-      floorA: '#6a573f', floorB: '#5a4934', ceilA: '#2a2430', ceilB: '#19151d',
-      map: [
-        '################',
-        '#..KKK.WWWW....#',
-        '#......W..W....#',
-        '#......W..W....#',
-        '#......WWWW....#',
-        '#..............#',
-        '#..CCCC........#',
-        '#..............#',
-        '#...........TT.#',
-        '################'
-      ],
-      spawns: {
-        start: { x: 2.4, y: 8.4, a: -0.02 },
-        fromHall: { x: 11.8, y: 8.0, a: Math.PI },
-        fromKitchen: { x: 2.8, y: 3.8, a: 1.2 },
-      },
-      signs: [
-        { x: 2.5, y: 7.1, text: '帳場' },
-        { x: 12.6, y: 8.7, text: '客室廊下' },
-        { x: 2.8, y: 1.6, text: '厨房' },
-      ]
-    },
-    hall: {
-      name: '客室廊下',
-      skyTop: '#111723', skyBottom: '#503928',
-      floorA: '#655038', floorB: '#56442f', ceilA: '#21212a', ceilB: '#15131b',
-      map: [
-        '########################',
-        '#......................#',
-        '#......................#',
-        '#...DD.....DD....DD.BB.#',
-        '#......................#',
-        '#......................#',
-        '#......................#',
-        '#..DD.SSSSSSSSSS..GG.C.#',
-        '#......................#',
-        '########################'
-      ],
-      spawns: {
-        fromLobby: { x: 2.0, y: 7.8, a: 0 },
-        fromRoom: { x: 5.8, y: 5.0, a: Math.PI },
-        fromRoom202: { x: 11.6, y: 5.0, a: Math.PI },
-        fromBath: { x: 18.0, y: 5.0, a: Math.PI },
-        fromArchive: { x: 14.0, y: 2.0, a: Math.PI / 2 },
-        fromRoom203: { x: 16.2, y: 5.0, a: Math.PI },
-        fromStaff: { x: 4.7, y: 7.2, a: 0 },
-        fromCourtyard: { x: 21.0, y: 7.2, a: Math.PI },
-        fromClosedWing: { x: 18.4, y: 7.2, a: Math.PI },
-      },
-      signs: [
-        { x: 4.2, y: 2.0, text: '201' },
-        { x: 11.2, y: 2.0, text: '202' },
-        { x: 16.2, y: 2.0, text: '203' },
-        { x: 18.9, y: 2.0, text: '浴場前' },
-        { x: 3.2, y: 7.7, text: '従業員室' },
-        { x: 14.3, y: 7.7, text: '北棟・宿帳庫' },
-        { x: 18.8, y: 7.7, text: '閉鎖棟' },
-        { x: 21.2, y: 7.7, text: '中庭' },
-      ]
-    },
-    room201: {
-      name: '201号室',
-      skyTop: '#19161d', skyBottom: '#6c4c34',
-      floorA: '#7a6b4e', floorB: '#665a43', ceilA: '#251f25', ceilB: '#19161a',
-      map: [
-        '############',
-        '#....SS....#',
-        '#..........#',
-        '#....TT....#',
-        '#..........#',
-        '#..........#',
-        '#..........#',
-        '############'
-      ],
-      spawns: { door: { x: 2.0, y: 5.0, a: 0 } },
-      signs: [{ x: 5.9, y: 1.6, text: '201号室' }]
-    },
-    room202: {
-      name: '202号室',
-      skyTop: '#16171f', skyBottom: '#5a4b38',
-      floorA: '#75694d', floorB: '#665842', ceilA: '#262128', ceilB: '#18161b',
-      map: [
-        '############',
-        '#....SS....#',
-        '#..........#',
-        '#..TT......#',
-        '#..........#',
-        '#..........#',
-        '#..........#',
-        '############'
-      ],
-      spawns: { door: { x: 2.0, y: 5.0, a: 0 } },
-      signs: [{ x: 5.9, y: 1.6, text: '202号室' }]
-    },
-    bath: {
-      name: '浴場前',
-      skyTop: '#0e1319', skyBottom: '#33444f',
-      floorA: '#5f6665', floorB: '#4f5554', ceilA: '#1d2128', ceilB: '#12151b',
-      map: [
-        '##############',
-        '#....MMMM....#',
-        '#............#',
-        '#............#',
-        '#....TT......#',
-        '#............#',
-        '#............#',
-        '##############'
-      ],
-      spawns: { door: { x: 2.0, y: 5.0, a: 0 } },
-      signs: [{ x: 7.0, y: 1.8, text: '浴場前' }]
-    },
-    kitchen: {
-      name: '厨房',
-      skyTop: '#15161c', skyBottom: '#423221',
-      floorA: '#66605a', floorB: '#4e4842', ceilA: '#201d21', ceilB: '#151218',
-      map: [
-        '##############',
-        '#............#',
-        '#....KKKK....#',
-        '#............#',
-        '#....TT......#',
-        '#............#',
-        '#............#',
-        '##############'
-      ],
-      spawns: { door: { x: 10.8, y: 5.0, a: Math.PI } },
-      signs: [{ x: 5.0, y: 1.7, text: '厨房' }]
-    },
-    archive: {
-      name: '宿帳庫',
-      skyTop: '#0a1016', skyBottom: '#23343b',
-      floorA: '#48423b', floorB: '#3d3732', ceilA: '#171b21', ceilB: '#0f1217',
-      map: [
-        '################',
-        '#....NNNNNN....#',
-        '#..............#',
-        '#..............#',
-        '#...KK.........#',
-        '#..............#',
-        '#..............#',
-        '#..........TT..#',
-        '################'
-      ],
-      spawns: { entry: { x: 3.2, y: 6.2, a: 0 } },
-      signs: [{ x: 8.0, y: 1.8, text: '宿帳庫' }]
-    },
-    closedWing: {
-      name: '閉鎖棟',
-      skyTop: '#101018', skyBottom: '#2f2530',
-      floorA: '#55473c', floorB: '#46392f', ceilA: '#1b1820', ceilB: '#121015',
-      map: [
-        '##################',
-        '#................#',
-        '#..SSSSS.........#',
-        '#................#',
-        '#.............TT.#',
-        '#................#',
-        '#....AAAA........#',
-        '#................#',
-        '#................#',
-        '##################'
-      ],
-      spawns: { entry: { x: 3.0, y: 7.0, a: 0 } },
-      signs: [{ x: 13.8, y: 3.7, text: '祭壇前' }, { x: 6.0, y: 1.8, text: '閉鎖棟' }]
-    }
-,
-room203: {
-  name: '203号室',
-  skyTop: '#17161d', skyBottom: '#5c4635',
-  floorA: '#786b52', floorB: '#655841', ceilA: '#262127', ceilB: '#18161b',
-  map: [
-    '############',
-    '#....SS....#',
-    '#..........#',
-    '#..TT......#',
-    '#..........#',
-    '#..........#',
-    '#..........#',
-    '############'
-  ],
-  spawns: { door: { x: 2.0, y: 5.0, a: 0 } },
-  signs: [{ x: 5.9, y: 1.6, text: '203号室' }]
-},
-staff: {
-  name: '従業員室',
-  skyTop: '#141820', skyBottom: '#4a3728',
-  floorA: '#5e5448', floorB: '#4b4339', ceilA: '#1f2328', ceilB: '#14171b',
-  map: [
-    '##############',
-    '#....NNNN....#',
-    '#............#',
-    '#....KKKK....#',
-    '#............#',
-    '#....TT......#',
-    '#............#',
-    '##############'
-  ],
-  spawns: { door: { x: 9.2, y: 5.0, a: Math.PI } },
-  signs: [{ x: 6.4, y: 1.7, text: '従業員室' }]
-},
-courtyard: {
-  name: '中庭',
-  skyTop: '#081019', skyBottom: '#1e2c34',
-  floorA: '#374136', floorB: '#2a3229', ceilA: '#11161a', ceilB: '#0a0d10',
-  map: [
-    '##################',
-    '#................#',
-    '#....TT....TT....#',
-    '#................#',
-    '#................#',
-    '#....SS....SS....#',
-    '#................#',
-    '#.............A..#',
-    '#................#',
-    '##################'
-  ],
-  spawns: { door: { x: 2.0, y: 8.0, a: 0 } },
-  signs: [{ x: 8.8, y: 1.8, text: '中庭' }, { x: 14.7, y: 7.6, text: '離れ通路' }]
-},
-annex: {
-  name: '離れ通路',
-  skyTop: '#090d12', skyBottom: '#1f2b35',
-  floorA: '#4a433c', floorB: '#3a342f', ceilA: '#171b20', ceilB: '#0e1216',
-  map: [
-    '####################',
-    '#..................#',
-    '#....NNNN..........#',
-    '#..................#',
-    '#.........TT.......#',
-    '#..................#',
-    '#...............A..#',
-    '#..................#',
-    '#..................#',
-    '####################'
-  ],
-  spawns: { entry: { x: 3.0, y: 7.2, a: 0 } },
-  signs: [{ x: 8.5, y: 1.8, text: '離れ通路' }, { x: 16.0, y: 6.6, text: '記録保管棚' }]
-},
-cellar: {
-  name: '地下記録庫',
-  skyTop: '#07080c', skyBottom: '#121820',
-  floorA: '#3d372f', floorB: '#2f2a23', ceilA: '#111317', ceilB: '#090b0f',
-  map: [
-    '####################',
-    '#....NNNN..........#',
-    '#..................#',
-    '#....KKKK..........#',
-    '#..................#',
-    '#.........TT.......#',
-    '#..................#',
-    '#..............SS..#',
-    '#..................#',
-    '####################'
-  ],
-  spawns: { entry: { x: 3.2, y: 7.4, a: 0 } },
-  signs: [{ x: 8.2, y: 1.8, text: '地下記録庫' }, { x: 14.4, y: 7.4, text: '祭具棚' }]
+(function(){
+'use strict';
+if (typeof THREE === 'undefined') {
+  alert('Three.js の読み込みに失敗しました。通信状態を確認して再読み込みしてください。');
+  return;
 }
 
-  };
-
-  const textures = createTextures();
-  const characterSpriteSets = {
-    okami: makeCharacterSet('okami'),
-    guest: makeCharacterSet('guest'),
-    maid: makeCharacterSet('maid'),
-    guest202: makeCharacterSet('guest202'),
-    guest203: makeCharacterSet('guest203'),
-    guide: makeCharacterSet('guide'),
-  };
-  const spriteCanvases = {
-    narrator: makePortrait('narrator'),
-    okamiPortrait: characterSpriteSets.okami.portrait,
-    guestPortrait: characterSpriteSets.guest.portrait,
-    maidPortrait: characterSpriteSets.maid.portrait,
-    guest202Portrait: characterSpriteSets.guest202.portrait,
-    guest203Portrait: characterSpriteSets.guest203.portrait,
-    guidePortrait: characterSpriteSets.guide.portrait,
-    tray: makeItemSprite('tray'),
-    phone: makeItemSprite('phone'),
-    notebook: makeItemSprite('notebook'),
-    bathSign: makeItemSprite('bathSign'),
-    key: makeItemSprite('key'),
-    ledger: makeItemSprite('ledger'),
-    lantern: makeItemSprite('lantern'),
-    film: makeItemSprite('film'),
-    shrine: makeItemSprite('shrine'),
-    archiveDoor: makeItemSprite('archiveDoor'),
-    closedDoor: makeItemSprite('closedDoor'),
-    door: makeItemSprite('door'),
-    signHall: makeItemSprite('bathSign'),
-  };
-
-  const speakerPortraitMap = {
-    '記録': 'narrator',
-    '女将': 'okamiPortrait',
-    '201号室の客': 'guestPortrait',
-    '仲居・篠': 'maidPortrait',
-    '202号室の客': 'guest202Portrait',
-    '203号室の客': 'guest203Portrait',
-    '誘導員': 'guidePortrait',
-    '受話器の向こう': 'guidePortrait',
-  };
-
-  function currentArea() { return areas[player.area]; }
-  function currentMap() { return currentArea().map; }
-
-  function setStatus(text, seconds=2.6) {
-    statusBox.textContent = text;
-    state.lastStatusTimer = seconds;
-  }
-  function setObjective(text) {
-    state.objective = text;
-    objectiveBox.textContent = text;
-  }
-
-  function tileAt(x, y) {
-    const mx = Math.floor(x), my = Math.floor(y);
-    const map = currentMap();
-    if (mx < 0 || my < 0 || my >= map.length || mx >= map[0].length) return '#';
-    return map[my][mx];
-  }
-  function isSolid(x, y) { return tileAt(x, y) !== '.'; }
-
-  function spawnAt(areaId, spawnKey) {
-    const sp = areas[areaId].spawns[spawnKey] || Object.values(areas[areaId].spawns)[0];
-    player.area = areaId;
-    player.x = sp.x;
-    player.y = sp.y;
-    player.a = sp.a;
-    areaLabel.textContent = areas[areaId].name;
-    state.areaFlash = 1;
-    if (state.chaseActive) syncGuideSpawnForArea(areaId);
-  }
-
-  function changeArea(areaId, spawnKey) {
-    resetTransientInput();
-    state.transitionLock = 0.42;
-    spawnAt(areaId, spawnKey);
-    setStatus('エリア移動: ' + areas[areaId].name, 1.6);
-    if (state.chaseActive && areaId === 'lobby' && !tasks.escapedGuide) {
-      state.chaseActive = false;
-      guide.active = false;
-      tasks.escapedGuide = true;
-      state.step = 9;
-      setObjective('女将に追跡のことを伝える');
-      showDialogue([
-        ['記録', '帳場まで戻った瞬間、廊下の向こうにいた誘導員の気配が途切れた。'],
-        ['記録', '女将だけが、逃げ帰ってくることを最初から知っていたように立っている。']
-      ]);
-    }
-    if (state.chaseActive && areaId === 'lobby' && tasks.gotFilm && !tasks.escapedGuide2) {
-      state.chaseActive = false;
-      guide.active = false;
-      tasks.escapedGuide2 = true;
-      state.step = 16;
-      setObjective('女将にフィルムのことを話す');
-      showDialogue([
-        ['記録', '二度目の追跡は、一度目より近かった。帳場へ滑り込んだ瞬間、ようやく息が戻る。'],
-        ['記録', '女将は逃げてくることを見越していたように、帳場の灯りだけを明るくして立っていた。']
-      ]);
-    }
-    if (state.chaseActive && areaId === 'lobby' && tasks.gotBasementCharm && !tasks.escapedGuide3) {
-      state.chaseActive = false;
-      guide.active = false;
-      tasks.escapedGuide3 = true;
-      state.step = 20;
-      saveGame();
-      endGame('宵宿の最終記録', '赤い護符を帳場へ持ち帰ったことで、今夜の順番はひとまず途切れた。v18では、追跡バグ修正・従業員室導線修正・3D風キャラ改善まで実装。次は救出分岐と脱出エンディングを足せます。');
-    }
-  }
-
-  function startNew() {
-    for (const key of Object.keys(tasks)) tasks[key] = false;
-    state.step = 0;
-    state.day = 1;
-    state.phase = 'day';
-    state.inDialogue = false;
-    state.ending = false;
-    state.dialogueQueue = [];
-    state.chaseActive = false;
-    state.chasedBefore = false;
-    state.menuOpen = false;
-    dayLabel.textContent = 'DAY 1';
-    phaseLabel.textContent = '昼勤務';
-    endingScreen.classList.add('hidden');
-    dialogueBox.classList.add('hidden');
-    promptBox.classList.add('hidden');
-    spawnAt('lobby', 'start');
-    guide.active = false;
-    setObjective('女将に話しかける');
-    setStatus('起動完了 / v18 3D Character Test', 3.0);
-    showDialogue([
-      ['記録', '住み込み初日。館内は静かすぎるほど静かだ。'],
-      ['記録', '今夜は客の話を拾うほど、深夜に調べられる範囲が増えていく。'],
-      ['記録', '二日目には従業員室、203号室、中庭、離れ通路まで順番が伸びる。'],
-      ['記録', 'ただし、宿帳庫のノートや離れのフィルムを手にした瞬間だけは、走る準備をしておいた方がいい。']
-    ]);
-  }
-
-  function getSaveData() {
-    return {
-      player: { x: player.x, y: player.y, a: player.a, area: player.area },
-      tasks: { ...tasks },
-      guide: { ...guide },
-      state: {
-        step: state.step,
-        day: state.day,
-        phase: state.phase,
-        objective: state.objective,
-        hudMinimal: state.hudMinimal,
-        chaseActive: state.chaseActive,
-      }
-    };
-  }
-
-  function saveGame() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(getSaveData()));
-    setStatus('保存した / v18', 1.8);
-  }
-
-  function loadGame() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) { setStatus('保存データなし', 1.8); return false; }
-    try {
-      const data = JSON.parse(raw);
-      Object.assign(tasks, data.tasks || {});
-      Object.assign(player, data.player || {});
-      Object.assign(guide, data.guide || {});
-      state.step = data.state?.step || 0;
-      state.day = data.state?.day || 1;
-      state.phase = data.state?.phase || 'day';
-      state.hudMinimal = !!data.state?.hudMinimal;
-      state.chaseActive = !!data.state?.chaseActive;
-      dayLabel.textContent = 'DAY ' + state.day;
-      phaseLabel.textContent = state.phase === 'night' ? '深夜調査' : '昼勤務';
-      areaLabel.textContent = areas[player.area].name;
-      setObjective(data.state?.objective || '続きから再開');
-      applyHudState();
-      endingScreen.classList.add('hidden');
-      dialogueBox.classList.add('hidden');
-      promptBox.classList.add('hidden');
-      state.ending = false;
-      state.inDialogue = false;
-      resetTransientInput();
-      state.transitionLock = 0.25;
-      setStatus('ロードした / v18', 1.8);
-      return true;
-    } catch (err) {
-      setStatus('ロード失敗', 1.8);
-      return false;
-    }
-  }
-
-  function applyHudState() {
-    hud.classList.toggle('hud-minimal', state.hudMinimal);
-    hudToggleBtn.textContent = state.hudMinimal ? 'HUD ON' : 'HUD OFF';
-  }
-
-  function toggleMenu(force) {
-    state.menuOpen = typeof force === 'boolean' ? force : !state.menuOpen;
-    menuPanel.classList.toggle('hidden', !state.menuOpen);
-  }
-
-  function updatePortrait(kind) {
-    portraitCtx.clearRect(0, 0, portraitCanvas.width, portraitCanvas.height);
-    const sprite = spriteCanvases[kind] || spriteCanvases.narrator;
-    portraitCtx.drawImage(sprite, 0, 0, portraitCanvas.width, portraitCanvas.height);
-  }
-
-  function showDialogue(lines, onEnd) {
-    state.inDialogue = true;
-    state.dialogueQueue = lines.slice();
-    state.dialogueOnEnd = onEnd || null;
-    dialogueBox.classList.remove('hidden');
-    promptBox.classList.add('hidden');
-    toggleMenu(false);
-    advanceDialogue();
-  }
-
-  function advanceDialogue() {
-    if (!state.inDialogue) return;
-    if (!state.dialogueQueue.length) {
-      state.inDialogue = false;
-      dialogueBox.classList.add('hidden');
-      const fn = state.dialogueOnEnd;
-      state.dialogueOnEnd = null;
-      if (typeof fn === 'function') fn();
-      return;
-    }
-    const [speaker, text] = state.dialogueQueue.shift();
-    speakerLabel.textContent = speaker;
-    dialogueText.textContent = text;
-    updatePortrait(speakerPortraitMap[speaker] || 'narrator');
-  }
-
-  function endGame(title, text) {
-    state.ending = true;
-    state.chaseActive = false;
-    guide.active = false;
-    endingTitle.textContent = title;
-    endingText.textContent = text;
-    endingScreen.classList.remove('hidden');
-    promptBox.classList.add('hidden');
-  }
-
-  function scriptedStepAction(actionId) {
-    switch (actionId) {
-      case 'okami':
-        showDialogue([
-          ['女将', '今日から帳場と二階の手伝いに入ってもらいます。まずは201号室へお茶を。'],
-          ['女将', '二階の客は、仕事のついでに余計なことまで喋ります。聞いた内容まで持ってきてください。'],
-          ['記録', '帳場の横に置かれた配膳盆を持っていく。']
-        ], () => {
-          tasks.talkedOkami = true;
-          state.step = 1;
-          setObjective('帳場の配膳盆を取る');
-          setStatus('仕事開始: 配膳盆を持つ');
-        });
-        break;
-      case 'tray':
-        showDialogue([
-          ['記録', '湯呑みが二つ。依頼は一人客のはずなのに、盆はやけに重い。']
-        ], () => {
-          tasks.gotTray = true;
-          state.step = 2;
-          setObjective('201号室の客にお茶を届ける');
-          setStatus('配膳盆を持った');
-        });
-        break;
-      case 'guest':
-        showDialogue([
-          ['201号室の客', '……遅かったな。昨日も、同じ時間に湯呑みが二つ来た。'],
-          ['201号室の客', '昨夜、浴場前で濡れた足音を聞いた。子どもの足音みたいに軽かった。'],
-          ['201号室の客', 'もし本気で調べる気なら、廊下の仲居と202の客にも当たれ。二人とも、何かを見て黙ってる。']
-        ], () => {
-          tasks.servedGuest = true;
-          state.step = 3;
-          setObjective('廊下の仲居に客の話を伝える');
-          setStatus('客の証言を聞いた');
-        });
-        break;
-      case 'maid':
-        showDialogue([
-          ['仲居・篠', '202の方、さっきから部屋の外を何度も確認しているんです。'],
-          ['仲居・篠', 'でも、その前に帳場へ戻ってください。黒電話がずっと鳴っていて……女将があなたを呼んでいます。'],
-          ['仲居・篠', '深夜に動くなら、聞いた話を順番に繋げてください。順番を間違えると、帰れなくなるから。']
-        ], () => {
-          tasks.talkedMaid = true;
-          state.step = 4;
-          setObjective('帳場の黒電話に出る');
-          setStatus('帳場へ戻る');
-        });
-        break;
-      case 'phone':
-        showDialogue([
-          ['受話器の向こう', '……二つ、足りない。'],
-          ['受話器の向こう', '浴場の鏡を見ろ。次に二〇二だ。そのあとで鍵を取れ。'],
-          ['女将', '今の、聞きましたか。夜の見回りに入ってください。順番だけは、守るように。']
-        ], () => {
-          tasks.answeredPhone = true;
-          state.step = 5;
-          state.phase = 'night';
-          phaseLabel.textContent = '深夜調査';
-          setObjective('浴場前の鏡を調べる');
-          setStatus('深夜調査に切り替わった');
-        });
-        break;
-      case 'mirror':
-        showDialogue([
-          ['記録', '鏡の曇りを拭うと、背後に子どもの影が一瞬だけ立っていた。'],
-          ['記録', '次の瞬間、鏡には「二〇二へ」と指でなぞった跡が残る。']
-        ], () => {
-          tasks.checkedBath = true;
-          state.step = 6;
-          setObjective('202号室の客から話を聞く');
-          setStatus('202号室へ向かう');
-        });
-        break;
-      case 'guest202':
-        showDialogue([
-          ['202号室の客', '白いヘルメットの男を見た。館内図も持たず、ただ廊下の角に立ってた。'],
-          ['202号室の客', '俺が目を離した瞬間、浴場前から宿帳庫の方へ滑るみたいに消えた。'],
-          ['202号室の客', '古い北棟を開けるなら、厨房の壁棚に予備鍵がある。従業員しか知らない。']
-        ], () => {
-          tasks.heard202 = true;
-          state.step = 7;
-          setObjective('厨房で予備鍵を取る');
-          setStatus('厨房で鍵を探す');
-        });
-        break;
-      case 'key':
-        showDialogue([
-          ['記録', '壁棚の奥から、錆びた予備鍵と赤いタグが出てきた。'],
-          ['記録', 'タグには「北棟・宿帳庫」とだけ書かれている。']
-        ], () => {
-          tasks.gotMasterKey = true;
-          state.step = 8;
-          setObjective('北の宿帳庫で青いノートを探す');
-          setStatus('宿帳庫へ');
-        });
-        break;
-      case 'notebook':
-        showDialogue([
-          ['記録', '青いノートの最後の行には、宿泊者名簿から消えた名前が並んでいる。'],
-          ['記録', 'その一番下に、今夜の自分の名前があった。'],
-          ['誘導員', '順番を、外れたな。']
-        ], () => {
-          tasks.gotNotebook = true;
-          state.step = 9;
-          state.chaseActive = true;
-          state.chasedBefore = true;
-          syncGuideSpawnForArea(player.area);
-          setObjective('誘導員から逃げて帳場へ戻る');
-          setStatus('追跡開始: 帳場まで逃げろ', 3.0);
-        });
-        break;
-      case 'okami2':
-        showDialogue([
-          ['女将', '逃げ切れたんですね。なら、次は閉鎖棟です。'],
-          ['女将', '宿帳庫のノートだけでは足りません。あそこに残った台帳が、失踪の順番を決めている。'],
-          ['女将', '誘導員が現れたなら、もう隠し通せません。閉鎖棟の祭壇前にある台帳を見てください。']
-        ], () => {
-          tasks.talkedOkamiAgain = true;
-          state.step = 10;
-          setObjective('閉鎖棟の祭壇前で古い台帳を調べる');
-          setStatus('閉鎖棟が開いた');
-        });
-        break;
-      case 'ledger':
-        showDialogue([
-          ['記録', '台帳には、失踪した宿泊客が「誘導完了」とだけ記されていた。'],
-          ['記録', '最後の空欄には、女将の筆跡で「次: 誘導員を見た者」とある。'],
-          ['記録', 'つまり今夜の順番は、自分だけではなかった。宿の全員が、もう選ばれている。'],
-          ['記録', 'だが夜が明けても、終わりにはならなかった。台帳の裏表紙に「二日目は中庭から」と走り書きされている。']
-        ], () => {
-          tasks.readLedger = true;
-          tasks.day2Started = true;
-          state.step = 12;
-          state.day = 2;
-          state.phase = 'day';
-          dayLabel.textContent = 'DAY 2';
-          phaseLabel.textContent = '昼勤務';
-          spawnAt('lobby', 'start');
-          setObjective('従業員室で仲居・篠を探す');
-          setStatus('二日目が始まった', 2.4);
-          showDialogue([
-            ['記録', '短い仮眠のあと、また同じ木の匂いで目が覚めた。'],
-            ['記録', '帳場の奥には、昨夜見たはずのない新しい宿帳が一冊増えている。'],
-            ['女将', '続きが見たいなら、篠を探しなさい。あの子だけが、中庭の順番を知っています。']
-          ]);
-        });
-        break;
-      case 'maid2':
-        showDialogue([
-          ['仲居・篠', '昨夜のこと、誰にも話していません。でも二日目になると、中庭の提灯に火が入るんです。'],
-          ['仲居・篠', '203号室の客は、その火を見た人だけが離れへ行けるって言っていました。'],
-          ['仲居・篠', 'もし行くなら、もう一度追われるかもしれません。今度はもっと近いです。']
-        ], () => {
-          tasks.talkedMaidDay2 = true;
-          state.step = 13;
-          setObjective('203号室の客から話を聞く');
-          setStatus('203号室へ');
-        });
-        break;
-      case 'guest203':
-        showDialogue([
-          ['203号室の客', '昨夜、赤い子どもが提灯の下に立っていた。顔だけが妙に近かった。'],
-          ['203号室の客', 'そのあと離れ通路から、映写機みたいな回る音がした。写真みたいなものを保管してるらしい。'],
-          ['203号室の客', '提灯の下に落ちてる黒い札を拾えば、離れの鍵になる。行くなら今のうちだ。']
-        ], () => {
-          tasks.heard203 = true;
-          state.step = 14;
-          setObjective('中庭の提灯を調べる');
-          setStatus('中庭へ向かう');
-        });
-        break;
-      case 'lantern':
-        showDialogue([
-          ['記録', '提灯の足元に、焼けた黒い札と細い金具が落ちている。'],
-          ['記録', '拾い上げると、離れ通路の戸が少しだけ開く音がした。'],
-          ['記録', '提灯の明かりに照らされて、濡れた足跡が離れの方へ伸びている。']
-        ], () => {
-          tasks.checkedCourtyard = true;
-          state.step = 15;
-          setObjective('離れ通路で黒いフィルムを探す');
-          setStatus('離れ通路が開いた');
-        });
-        break;
-      case 'film':
-        showDialogue([
-          ['記録', '保管棚には、宿泊客の顔が焼き付いた黒いフィルムが巻かれていた。'],
-          ['記録', '最後の一枚に映っているのは、白ヘルメットの誘導員の背後に並ばされた従業員たち。'],
-          ['誘導員', '二日目の順番も、見たな。']
-        ], () => {
-          tasks.gotFilm = true;
-          state.step = 16;
-          state.phase = 'night';
-          phaseLabel.textContent = '深夜調査';
-          state.chaseActive = true;
-          syncGuideSpawnForArea(player.area);
-          setObjective('誘導員から逃げて帳場へ戻る');
-          setStatus('第二追跡開始: 帳場へ逃げろ', 3.0);
-        });
-        break;
-      case 'okami3':
-        showDialogue([
-          ['女将', 'フィルムまで見たなら、最後の記録を確かめなさい。'],
-          ['女将', '地下記録庫には、誘導が始まった最初の夜の護符が残っています。'],
-          ['女将', '201号室の客は、その場所だけを知っている。朝になる前に聞きに行きなさい。'],
-          ['記録', '二日目は終わっていない。女将の言葉で、夜は三日目へ滑り込んだ。']
-        ], () => {
-          tasks.finalTalked = true;
-          tasks.day3Started = true;
-          state.day = 3;
-          dayLabel.textContent = 'DAY 3';
-          state.phase = 'night';
-          phaseLabel.textContent = '深夜調査';
-          state.step = 17;
-          spawnAt('lobby', 'start');
-          setObjective('201号室の客に地下記録庫のことを聞く');
-          setStatus('三日目: 最終夜が始まった', 2.6);
-        });
-        break;
-      case 'guestAgain':
-        showDialogue([
-          ['201号室の客', '地下の記録庫なら、閉鎖棟の一番奥だ。赤い護符が残っている。'],
-          ['201号室の客', 'あれを持って帳場へ戻れ。誘導員は最後に一番短い道を塞いでくる。'],
-          ['201号室の客', 'もし見つかったら、迷わず閉鎖棟から帳場へ走れ。立ち止まるな。']
-        ], () => {
-          tasks.talkedGuestAgain = true;
-          state.step = 18;
-          setObjective('閉鎖棟の地下記録庫で赤い護符を探す');
-          setStatus('地下記録庫が開いた');
-        });
-        break;
-      case 'basementCharm':
-        showDialogue([
-          ['記録', '祭具棚の奥から、煤けた赤い護符が出てきた。'],
-          ['記録', '裏には今夜の帳場の見取り図と、逃げ道に丸が付いている。'],
-          ['誘導員', '最後の順番だ。』']
-        ], () => {
-          tasks.gotBasementCharm = true;
-          state.step = 19;
-          state.chaseActive = true;
-          syncGuideSpawnForArea(player.area);
-          setObjective('誘導員から逃げて帳場へ戻る');
-          setStatus('最終追跡開始: 帳場へ逃げろ', 3.0);
-        });
-        break;
-      case 'toHall': changeArea('hall', 'fromLobby'); break;
-      case 'toLobby': changeArea('lobby', 'fromHall'); break;
-      case 'toKitchen': changeArea('kitchen', 'door'); break;
-      case 'kitchenExit': changeArea('lobby', 'fromKitchen'); break;
-      case 'toRoom201': changeArea('room201', 'door'); break;
-      case 'room201Exit': changeArea('hall', 'fromRoom'); break;
-      case 'toRoom202': changeArea('room202', 'door'); break;
-      case 'room202Exit': changeArea('hall', 'fromRoom202'); break;
-      case 'toRoom203': changeArea('room203', 'door'); break;
-      case 'room203Exit': changeArea('hall', 'fromRoom203'); break;
-      case 'toStaff': changeArea('staff', 'door'); break;
-      case 'staffExit': changeArea('hall', 'fromStaff'); break;
-      case 'toBath': changeArea('bath', 'door'); break;
-      case 'bathExit': changeArea('hall', 'fromBath'); break;
-      case 'toArchive': if (tasks.gotMasterKey) changeArea('archive', 'entry'); break;
-      case 'archiveExit': changeArea('hall', 'fromArchive'); break;
-      case 'archiveExitFar': changeArea('hall', 'fromArchive'); break;
-      case 'toCourtyard': if (tasks.heard203 || tasks.checkedCourtyard || tasks.gotFilm) changeArea('courtyard', 'door'); break;
-      case 'courtyardExit': changeArea('hall', 'fromCourtyard'); break;
-      case 'toAnnex': if (tasks.checkedCourtyard) changeArea('annex', 'entry'); break;
-      case 'annexExit': changeArea('courtyard', 'door'); break;
-      case 'toClosedWing': if (tasks.talkedOkamiAgain || tasks.day3Started) changeArea('closedWing', 'entry'); break;
-      case 'closedWingExit': changeArea('hall', 'fromClosedWing'); break;
-      case 'toCellar': if (tasks.day3Started) changeArea('cellar', 'entry'); break;
-      case 'cellarExit': changeArea('closedWing', 'entry'); break;
-      case 'shrine':
-        showDialogue([
-          ['記録', '祭壇には使い古された誘導旗と、白いヘルメットの写真が置かれている。'],
-          ['記録', '誘導員は怪異ではなく、この宿で順番を運ぶ役目そのものだった。'],
-          ['記録', '台帳はすぐ近くにある。今のうちに読めば、夜の仕組みが分かる。']
-        ], () => {
-          tasks.checkedClosedWing = true;
-          setObjective('祭壇前の古い台帳を読む');
-          setStatus('台帳を読める');
-        });
-        break;
-    }
-  }
-
-  function areaMapLayout() {
-    return {
-      lobby: { x: 10, y: 20, w: 46, h: 42, label: '帳場' },
-      hall: { x: 64, y: 20, w: 64, h: 42, label: '廊下' },
-      room201: { x: 136, y: 6, w: 48, h: 22, label: '201' },
-      room202: { x: 136, y: 30, w: 48, h: 22, label: '202' },
-      bath: { x: 192, y: 8, w: 52, h: 22, label: '浴場' },
-      kitchen: { x: 10, y: 68, w: 46, h: 20, label: '厨房' },
-      archive: { x: 86, y: 68, w: 58, h: 20, label: '宿帳庫' },
-      closedWing: { x: 156, y: 68, w: 74, h: 20, label: '閉鎖棟' },
-      staff: { x: 10, y: 92, w: 46, h: 20, label: '従業員室' },
-      room203: { x: 136, y: 54, w: 48, h: 22, label: '203' },
-      courtyard: { x: 238, y: 68, w: 62, h: 20, label: '中庭' },
-      annex: { x: 238, y: 38, w: 62, h: 20, label: '離れ' },
-      cellar: { x: 156, y: 92, w: 74, h: 20, label: '地下' },
-    };
-  }
-
-  function miniMapObjectiveArea() {
-    if (state.step <= 1) return 'lobby';
-    if (state.step === 2) return 'room201';
-    if (state.step === 3) return 'hall';
-    if (state.step === 4) return 'lobby';
-    if (state.step === 5) return 'bath';
-    if (state.step === 6) return 'room202';
-    if (state.step === 7) return 'kitchen';
-    if (state.step === 8) return 'archive';
-    if (state.step === 9) return tasks.escapedGuide ? 'lobby' : 'hall';
-    if (state.step === 10) return 'closedWing';
-    if (state.step === 12) return 'staff';
-    if (state.step === 13) return 'room203';
-    if (state.step === 14) return 'courtyard';
-    if (state.step === 15) return 'annex';
-    if (state.step === 16) return 'lobby';
-    if (state.step === 17) return 'room201';
-    if (state.step === 18) return 'cellar';
-    if (state.step === 19) return 'lobby';
-    return player.area;
-  }
-
-
-  function objectiveTargetId() {
-    switch (state.step) {
-      case 0: return 'okami';
-      case 1: return 'tray';
-      case 2: return 'guest';
-      case 3: return 'maid';
-      case 4: return 'phone';
-      case 5: return 'mirror';
-      case 6: return 'guest202';
-      case 7: return 'key';
-      case 8: return 'notebook';
-      case 9: return 'toLobby';
-      case 10: return tasks.checkedClosedWing ? 'ledger' : 'shrine';
-      case 12: return 'maid2';
-      case 13: return 'guest203';
-      case 14: return 'lantern';
-      case 15: return 'film';
-      case 16: return 'okami3';
-      case 17: return 'guestAgain';
-      case 18: return 'basementCharm';
-      case 19: return 'toLobby';
-      default: return null;
-    }
-  }
-
-  function objectiveTargetSprite() {
-    const id = objectiveTargetId();
-    if (!id) return null;
-    return activeSprites().find(s => s.id === id) || null;
-  }
-
-  function approximateObjectiveDistance() {
-    const target = objectiveTargetSprite();
-    if (target) return Math.hypot(target.x - player.x, target.y - player.y) * 2.2;
-    const layout = areaMapLayout();
-    const here = layout[player.area];
-    const there = layout[miniMapObjectiveArea()];
-    if (!here || !there) return 0;
-    const hx = here.x + here.w / 2, hy = here.y + here.h / 2;
-    const tx = there.x + there.w / 2, ty = there.y + there.h / 2;
-    return Math.hypot(tx - hx, ty - hy) * 0.35 + 4;
-  }
-
-  function updateDistanceBox() {
-    if (!distanceBox) return;
-    const d = Math.max(0, approximateObjectiveDistance());
-    const areaName = objectiveTargetSprite()?.area === player.area ? '目標' : areas[miniMapObjectiveArea()]?.name || '目標';
-    distanceBox.textContent = `${areaName} 約${Math.round(d)}m`;
-  }
-
-  function drawMiniMap() {
-    const layout = areaMapLayout();
-    mapCtx.fillStyle = '#0d1016';
-    mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
-    mapCtx.strokeStyle = 'rgba(255,255,255,.10)';
-    mapCtx.lineWidth = 2;
-    mapCtx.beginPath();
-    mapCtx.moveTo(56, 41); mapCtx.lineTo(64, 41); mapCtx.lineTo(128, 41);
-    mapCtx.moveTo(33, 62); mapCtx.lineTo(33, 68);
-    mapCtx.moveTo(96, 62); mapCtx.lineTo(96, 68); mapCtx.lineTo(144, 68);
-    mapCtx.stroke();
-
-    const target = miniMapObjectiveArea();
-    for (const [key, box] of Object.entries(layout)) {
-      const active = key === player.area;
-      const objective = key === target;
-      mapCtx.fillStyle = active ? '#cfaa74' : objective ? '#6a8cc5' : '#1d2430';
-      mapCtx.fillRect(box.x, box.y, box.w, box.h);
-      mapCtx.strokeStyle = objective ? '#b4d1ff' : 'rgba(255,255,255,.18)';
-      mapCtx.strokeRect(box.x + .5, box.y + .5, box.w - 1, box.h - 1);
-      mapCtx.fillStyle = active ? '#18130f' : '#f5efe5';
-      mapCtx.font = '10px sans-serif';
-      mapCtx.textAlign = 'center';
-      mapCtx.fillText(box.label, box.x + box.w / 2, box.y + box.h / 2 + 3);
-    }
-    if (state.chaseActive) {
-      const box = layout[player.area];
-      if (box) {
-        mapCtx.fillStyle = 'rgba(215,100,100,.9)';
-        mapCtx.beginPath();
-        mapCtx.arc(box.x + box.w - 8, box.y + 8, 4, 0, Math.PI * 2);
-        mapCtx.fill();
-      }
-    }
-  }
-
-  function syncGuideSpawnForArea(areaId) {
-    if (!state.chaseActive) { guide.active = false; return; }
-    guide.area = areaId;
-    if (areaId === 'archive') {
-      guide.x = 13.2; guide.y = 2.1;
-      guide.active = true;
-    } else if (areaId === 'hall') {
-      guide.x = 20.0; guide.y = 2.0;
-      guide.active = true;
-    } else if (areaId === 'closedWing') {
-      guide.x = 14.5; guide.y = 2.0;
-      guide.active = true;
-    } else if (areaId === 'annex') {
-      guide.x = 16.8; guide.y = 2.4;
-      guide.active = true;
-    } else if (areaId === 'courtyard') {
-      guide.x = 14.5; guide.y = 2.2;
-      guide.active = true;
-    } else if (areaId === 'cellar') {
-      guide.x = 16.4; guide.y = 2.2;
-      guide.active = true;
-    } else {
-      guide.active = false;
-    }
-  }
-
-  function activeSprites() {
-    const list = [];
-    const push = (entry) => { if (entry.area === player.area) list.push(entry); };
-
-    push({ type:'npc', id:'okami', area:'lobby', x:5.7, y:6.2, kind:'okami', prompt:'女将に話しかける', active: !tasks.talkedOkami });
-    push({ type:'npc', id:'okami2', area:'lobby', x:5.7, y:6.2, kind:'okami', prompt:'女将に話しかける', active: tasks.escapedGuide && !tasks.talkedOkamiAgain });
-    push({ type:'item', id:'tray', area:'lobby', x:12.8, y:8.2, kind:'tray', prompt:'配膳盆を取る', active: tasks.talkedOkami && !tasks.gotTray });
-    push({ type:'portal', id:'toHall', area:'lobby', x:13.6, y:8.0, kind:'signHall', prompt:'客室廊下へ', active: true });
-    push({ type:'portal', id:'toKitchen', area:'lobby', x:2.6, y:1.9, kind:'door', prompt:'厨房へ入る', active: true });
-    push({ type:'item', id:'phone', area:'lobby', x:4.3, y:6.4, kind:'phone', prompt:'黒電話に出る', active: tasks.talkedMaid && !tasks.answeredPhone });
-
-    push({ type:'portal', id:'toLobby', area:'hall', x:1.8, y:7.8, kind:'signHall', prompt:'帳場へ戻る', active: true });
-    push({ type:'portal', id:'toRoom201', area:'hall', x:5.0, y:3.6, kind:'door', prompt:'201号室へ入る', active: true });
-    push({ type:'portal', id:'toRoom202', area:'hall', x:11.0, y:3.6, kind:'door', prompt:'202号室へ入る', active: true });
-    push({ type:'portal', id:'toBath', area:'hall', x:18.8, y:3.6, kind:'bathSign', prompt:'浴場前へ行く', active: true });
-    push({ type:'portal', id:'toRoom203', area:'hall', x:16.1, y:3.6, kind:'door', prompt:'203号室へ入る', active: tasks.talkedMaidDay2 || tasks.heard203 || tasks.checkedCourtyard || tasks.gotFilm || tasks.escapedGuide2 });
-    push({ type:'portal', id:'toStaff', area:'hall', x:3.2, y:7.3, kind:'door', prompt:'従業員室へ入る', active: tasks.day2Started });
-    push({ type:'portal', id:'toArchive', area:'hall', x:14.0, y:7.3, kind:'archiveDoor', prompt:'北の宿帳庫へ', active: tasks.gotMasterKey });
-    push({ type:'portal', id:'toClosedWing', area:'hall', x:19.0, y:7.3, kind:'closedDoor', prompt:'閉鎖棟へ入る', active: tasks.talkedOkamiAgain });
-    push({ type:'portal', id:'toCourtyard', area:'hall', x:21.2, y:7.3, kind:'lantern', prompt:'中庭へ出る', active: tasks.heard203 || tasks.checkedCourtyard || tasks.gotFilm });
-    push({ type:'npc', id:'maid', area:'hall', x:9.8, y:5.4, kind:'maid', prompt:'仲居・篠に話しかける', active: tasks.servedGuest && !tasks.talkedMaid });
-    push({ type:'npc', id:'guide', area:'hall', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'hall' });
-
-    push({ type:'portal', id:'room201Exit', area:'room201', x:1.6, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
-    push({ type:'npc', id:'guest', area:'room201', x:7.4, y:3.1, kind:'guest', prompt:'201号室の客に話しかける', active: tasks.gotTray && !tasks.servedGuest });
-
-    push({ type:'portal', id:'room202Exit', area:'room202', x:1.6, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
-    push({ type:'npc', id:'guest202', area:'room202', x:6.6, y:3.2, kind:'guest202', prompt:'202号室の客に話しかける', active: tasks.checkedBath && !tasks.heard202 });
-
-    push({ type:'portal', id:'room203Exit', area:'room203', x:1.6, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
-    push({ type:'npc', id:'guest203', area:'room203', x:7.0, y:3.2, kind:'guest203', prompt:'203号室の客に話しかける', active: tasks.talkedMaidDay2 && !tasks.heard203 });
-
-    push({ type:'portal', id:'bathExit', area:'bath', x:1.6, y:5.0, kind:'bathSign', prompt:'廊下へ戻る', active: true });
-    push({ type:'item', id:'mirror', area:'bath', x:6.6, y:1.9, kind:'guide', prompt:'鏡を調べる', active: tasks.answeredPhone && !tasks.checkedBath });
-
-    push({ type:'portal', id:'kitchenExit', area:'kitchen', x:10.8, y:5.0, kind:'door', prompt:'帳場へ戻る', active: true });
-    push({ type:'item', id:'key', area:'kitchen', x:5.2, y:4.2, kind:'key', prompt:'予備鍵を取る', active: tasks.heard202 && !tasks.gotMasterKey });
-
-    push({ type:'portal', id:'staffExit', area:'staff', x:10.8, y:5.0, kind:'door', prompt:'廊下へ戻る', active: true });
-    push({ type:'npc', id:'maid2', area:'staff', x:5.6, y:4.0, kind:'maid', prompt:'仲居・篠に話しかける', active: tasks.day2Started && !tasks.talkedMaidDay2 });
-
-    push({ type:'portal', id:'archiveExit', area:'archive', x:2.1, y:7.0, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
-    push({ type:'portal', id:'archiveExitFar', area:'archive', x:12.8, y:7.1, kind:'archiveDoor', prompt:'廊下へ戻る', active: true });
-    push({ type:'item', id:'notebook', area:'archive', x:4.6, y:4.2, kind:'notebook', prompt:'青いノートを拾う', active: tasks.gotMasterKey && !tasks.gotNotebook });
-    push({ type:'npc', id:'guide', area:'archive', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'archive' });
-
-    push({ type:'portal', id:'courtyardExit', area:'courtyard', x:1.8, y:8.0, kind:'door', prompt:'廊下へ戻る', active: true });
-    push({ type:'portal', id:'toAnnex', area:'courtyard', x:14.8, y:7.8, kind:'archiveDoor', prompt:'離れ通路へ進む', active: tasks.checkedCourtyard || tasks.gotFilm });
-    push({ type:'item', id:'lantern', area:'courtyard', x:8.8, y:2.4, kind:'lantern', prompt:'提灯を調べる', active: tasks.heard203 && !tasks.checkedCourtyard });
-    push({ type:'npc', id:'guide', area:'courtyard', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'courtyard' });
-
-    push({ type:'portal', id:'annexExit', area:'annex', x:1.8, y:8.0, kind:'archiveDoor', prompt:'中庭へ戻る', active: true });
-    push({ type:'item', id:'film', area:'annex', x:16.0, y:6.4, kind:'film', prompt:'黒いフィルムを拾う', active: tasks.checkedCourtyard && !tasks.gotFilm });
-    push({ type:'npc', id:'guide', area:'annex', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'annex' });
-
-    push({ type:'portal', id:'closedWingExit', area:'closedWing', x:1.6, y:8.0, kind:'closedDoor', prompt:'廊下へ戻る', active: true });
-    push({ type:'portal', id:'toCellar', area:'closedWing', x:15.0, y:8.0, kind:'archiveDoor', prompt:'地下記録庫へ降りる', active: tasks.day3Started && !tasks.gotBasementCharm });
-    push({ type:'item', id:'shrine', area:'closedWing', x:14.6, y:4.1, kind:'shrine', prompt:'祭壇を調べる', active: tasks.talkedOkamiAgain && !tasks.checkedClosedWing });
-    push({ type:'item', id:'ledger', area:'closedWing', x:6.0, y:6.1, kind:'ledger', prompt:'古い台帳を読む', active: tasks.checkedClosedWing && !tasks.readLedger });
-    push({ type:'npc', id:'guide', area:'closedWing', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'closedWing' });
-    push({ type:'npc', id:'okami3', area:'lobby', x:5.7, y:6.2, kind:'okami', prompt:'女将に話しかける', active: tasks.escapedGuide2 && !tasks.finalTalked });
-    push({ type:'npc', id:'guestAgain', area:'room201', x:7.4, y:3.1, kind:'guest', prompt:'201号室の客に話しかける', active: tasks.day3Started && !tasks.talkedGuestAgain });
-    push({ type:'portal', id:'cellarExit', area:'cellar', x:2.0, y:8.0, kind:'archiveDoor', prompt:'閉鎖棟へ戻る', active: true });
-    push({ type:'item', id:'basementCharm', area:'cellar', x:10.0, y:5.4, kind:'film', prompt:'赤い護符を拾う', active: tasks.talkedGuestAgain && !tasks.gotBasementCharm });
-    push({ type:'npc', id:'guide', area:'cellar', x:guide.x, y:guide.y, kind:'guide', prompt:'', active: state.chaseActive && guide.active && guide.area === 'cellar' });
-
-    return list.filter(s => s.active);
-  }
-
-  function getNearbyInteraction() {
-    const sprites = activeSprites();
-    let nearest = null;
-    let nearestDist = 999;
-    for (const s of sprites) {
-      if (!s.prompt) continue;
-      const dx = s.x - player.x;
-      const dy = s.y - player.y;
-      const d = Math.hypot(dx, dy);
-      if (d > 1.3) continue;
-      const ang = normalizeAngle(Math.atan2(dy, dx) - player.a);
-      if (Math.abs(ang) > 0.75) continue;
-      if (d < nearestDist) { nearest = s; nearestDist = d; }
-    }
-    return nearest;
-  }
-
-
-  function getNearbyPortal(autoOnly=false) {
-    const sprites = activeSprites();
-    let nearest = null;
-    let nearestDist = 999;
-    for (const s of sprites) {
-      if (s.type !== 'portal') continue;
-      const d = Math.hypot(s.x - player.x, s.y - player.y);
-      if (d > (state.chaseActive ? 1.05 : 0.72)) continue;
-      if (!autoOnly) {
-        const ang = normalizeAngle(Math.atan2(s.y - player.y, s.x - player.x) - player.a);
-        if (!state.chaseActive && Math.abs(ang) > 1.35) continue;
-      }
-      if (d < nearestDist) { nearest = s; nearestDist = d; }
-    }
-    return nearest;
-  }
-
-  function maybeAutoPortal() {
-    if (state.inDialogue || state.ending || state.transitionLock > 0) return;
-    const portal = getNearbyPortal(true);
-    if (!portal) return;
-    if (!state.chaseActive && !lookInput.active && !moveInput.active && !keys.w && !keys.a && !keys.s && !keys.d) return;
-    scriptedStepAction(portal.id);
-  }
-
-  function act() {
-    if (state.ending || state.transitionLock > 0) return;
-    if (state.inDialogue) { advanceDialogue(); return; }
-    const target = getNearbyInteraction();
-    if (!target) return;
-    scriptedStepAction(target.id);
-  }
-
-  function normalizeAngle(a) {
-    while (a > Math.PI) a -= Math.PI * 2;
-    while (a < -Math.PI) a += Math.PI * 2;
-    return a;
-  }
-
-  function createTextures() {
-    const make = (draw) => {
-      const c = document.createElement('canvas');
-      c.width = 64; c.height = 64;
-      const x = c.getContext('2d');
-      x.imageSmoothingEnabled = false;
-      draw(x, c.width, c.height);
-      return c;
-    };
-    return {
-      '#': make((x,w,h) => {
-        x.fillStyle = '#4d3725'; x.fillRect(0,0,w,h);
-        for (let i=0;i<8;i++) {
-          x.fillStyle = i%2 ? '#6c4e33' : '#573c28';
-          x.fillRect(i*8,0,4,h);
-        }
-        x.fillStyle = 'rgba(0,0,0,.15)';
-        for (let i=0;i<8;i++) x.fillRect(0, i*8, w, 1);
-      }),
-      W: make((x,w,h) => {
-        x.fillStyle = '#5b3f2b'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#d8cab3'; x.fillRect(7,7,w-14,h-14);
-        x.fillStyle = '#70472f'; x.fillRect(0,0,6,h); x.fillRect(w-6,0,6,h);
-        x.fillRect(0,0,w,6); x.fillRect(0,h-6,w,6);
-        x.fillStyle = 'rgba(0,0,0,.08)'; x.fillRect(w/2-2, 7, 4, h-14);
-      }),
-      D: make((x,w,h) => {
-        x.fillStyle = '#6a2f29'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#a65f55'; x.fillRect(8,8,w-16,h-16);
-        x.fillStyle = '#e6d1a2'; x.fillRect(w-14,h/2,4,4);
-        x.fillStyle = 'rgba(0,0,0,.15)'; x.fillRect(w/2-1, 8, 2, h-16);
-      }),
-      B: make((x,w,h) => {
-        x.fillStyle = '#43525a'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#8ca6b0'; x.fillRect(8,8,w-16,h-16);
-        x.fillStyle = 'rgba(255,255,255,.16)'; x.fillRect(12,12,w-24,6);
-      }),
-      N: make((x,w,h) => {
-        x.fillStyle = '#2c3338'; x.fillRect(0,0,w,h);
-        for (let i=0;i<5;i++) {
-          x.fillStyle = i%2 ? '#566067' : '#3f494f';
-          x.fillRect(8+i*10, 8, 7, h-16);
-        }
-      }),
-      S: make((x,w,h) => {
-        x.fillStyle = '#7f5d2a'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#d1bb89'; x.fillRect(10,12,w-20,h-24);
-        x.fillStyle = '#694720'; x.fillRect(0,0,w,6); x.fillRect(0,h-6,w,6);
-      }),
-      T: make((x,w,h) => {
-        x.fillStyle = '#3b2f24'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#8a6637'; x.fillRect(8,14,w-16,h-18);
-        x.fillStyle = '#c8a76a'; x.fillRect(12,18,w-24,h-26);
-      }),
-      C: make((x,w,h) => {
-        x.fillStyle = '#3a2a1c'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#62442a'; x.fillRect(4,10,w-8,h-10);
-      }),
-      M: make((x,w,h) => {
-        x.fillStyle = '#4d5c64'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#b0c8d1'; x.fillRect(8,8,w-16,h-16);
-      }),
-      K: make((x,w,h) => {
-        x.fillStyle = '#3c3027'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#625449'; x.fillRect(6,6,w-12,h-12);
-      }),
-      A: make((x,w,h) => {
-        x.fillStyle = '#35261c'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#6d3a30'; x.fillRect(12,12,w-24,h-24);
-        x.fillStyle = '#d9c59c'; x.fillRect(18,18,w-36,h-36);
-      }),
-      G: make((x,w,h) => {
-        x.fillStyle = '#2d2533'; x.fillRect(0,0,w,h);
-        x.fillStyle = '#544d68'; x.fillRect(8,8,w-16,h-16);
-        x.fillStyle = '#c3c1cb'; x.fillRect(16,16,w-32,8);
-      }),
-    };
-  }
-
-  function makeItemSprite(kind) {
-    const c = document.createElement('canvas');
-    c.width = 128; c.height = 180;
-    const x = c.getContext('2d');
-    x.imageSmoothingEnabled = false;
-    const o = (px, py, w, h, fill, stroke = '#101010') => {
-      x.fillStyle = stroke; x.fillRect(px-1, py-1, w+2, h+2);
-      x.fillStyle = fill; x.fillRect(px, py, w, h);
-    };
-    if (kind === 'tray') {
-      o(22, 102, 84, 14, '#744d2b');
-      o(28, 78, 24, 24, '#e3e0d7'); o(76, 78, 24, 24, '#e3e0d7');
-      o(34, 84, 12, 8, '#7f9eb7'); o(82, 84, 12, 8, '#7f9eb7');
-    } else if (kind === 'phone') {
-      o(34, 98, 60, 26, '#1f1f22'); o(40, 76, 48, 20, '#27282d'); o(52, 68, 24, 8, '#4c4d57');
-    } else if (kind === 'notebook') {
-      o(42, 64, 48, 68, '#2a4f86'); o(50, 72, 30, 50, '#d4e0f0'); o(46, 64, 5, 68, '#183055');
-    } else if (kind === 'bathSign') {
-      o(46, 20, 10, 110, '#6a5138'); o(56, 36, 44, 58, '#bfa56c'); o(66, 48, 24, 12, '#5f3c2a');
-    } else if (kind === 'key') {
-      o(54, 74, 18, 8, '#cfb56d'); o(70, 72, 18, 12, '#cfb56d'); o(84, 74, 10, 8, '#cfb56d');
-      o(48, 66, 16, 16, 'rgba(0,0,0,0)');
-      x.strokeStyle = '#cfb56d'; x.lineWidth = 6; x.beginPath(); x.arc(56, 74, 10, 0, Math.PI*2); x.stroke();
-    } else if (kind === 'ledger') {
-      o(34, 56, 60, 80, '#6d3a30'); o(42, 66, 44, 60, '#edd9b4'); o(38, 56, 6, 80, '#3d1d17');
-    } else if (kind === 'lantern') {
-      o(58, 26, 10, 108, '#5a4631'); o(42, 48, 42, 48, '#d2b27c'); o(46, 54, 34, 36, '#f3d07a');
-    } else if (kind === 'film') {
-      o(38, 64, 52, 18, '#151618'); o(36, 84, 56, 28, '#2a2d33'); o(48, 88, 12, 20, '#9297a0'); o(68, 88, 12, 20, '#9297a0');
-    } else if (kind === 'shrine') {
-      o(30, 100, 68, 18, '#6a4827'); o(40, 54, 50, 46, '#9c2f34'); o(52, 34, 26, 20, '#d8c389');
-    } else if (kind === 'archiveDoor' || kind === 'closedDoor' || kind === 'door') {
-      const frame = kind === 'closedDoor' ? '#3b334d' : (kind === 'archiveDoor' ? '#4a382d' : '#53362a');
-      const front = kind === 'closedDoor' ? '#6d6484' : (kind === 'archiveDoor' ? '#8a6a53' : '#a06e58');
-      const panel = kind === 'closedDoor' ? '#887ea0' : (kind === 'archiveDoor' ? '#bb936d' : '#c88c6d');
-      x.fillStyle = 'rgba(0,0,0,.18)'; x.beginPath(); x.ellipse(64, 150, 34, 10, 0, 0, Math.PI*2); x.fill();
-      o(28, 20, 66, 122, frame);
-      x.fillStyle = '#291d18'; x.beginPath(); x.moveTo(94, 20); x.lineTo(110, 30); x.lineTo(110, 142); x.lineTo(94, 142); x.closePath(); x.fill();
-      o(36, 28, 56, 112, front);
-      o(44, 40, 18, 38, panel); o(66, 40, 18, 38, panel);
-      o(44, 88, 18, 42, panel); o(66, 88, 18, 42, panel);
-      o(82, 86, 6, 6, '#d7c287');
-      x.fillStyle = 'rgba(255,255,255,.08)'; x.fillRect(40, 32, 8, 102);
-    }
-    return c;
-  }
-
-  function drawHead(ctx, x, y, w, h, skin, hair, eye='dark') {
-    const faceGrad = ctx.createLinearGradient(x, y-h*0.3, x, y+h*0.5);
-    faceGrad.addColorStop(0, skin);
-    faceGrad.addColorStop(1, 'rgba(120,86,72,.75)');
-    ctx.fillStyle = hair;
-    ctx.beginPath();
-    ctx.ellipse(x, y - 4, w * 0.54, h * 0.56, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = faceGrad;
-    ctx.beginPath();
-    ctx.ellipse(x, y + 2, w * 0.42, h * 0.48, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.18)';
-    ctx.beginPath(); ctx.ellipse(x - w*0.14, y - h*0.05, w*0.12, h*0.09, -0.5, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = eye === 'red' ? '#8f2020' : '#121212';
-    ctx.fillRect(x - w*0.17, y, w*0.09, h*0.04);
-    ctx.fillRect(x + w*0.08, y, w*0.09, h*0.04);
-    ctx.fillStyle = 'rgba(40,25,18,.25)'; ctx.fillRect(x - w*0.2, y - h*0.06, w*0.14, h*0.02); ctx.fillRect(x + w*0.06, y - h*0.06, w*0.14, h*0.02);
-    ctx.fillStyle = '#80574a';
-    ctx.fillRect(x - w*0.02, y + h*0.12, w*0.04, h*0.11);
-    ctx.fillRect(x - w*0.09, y + h*0.24, w*0.18, h*0.03);
-    ctx.fillStyle = 'rgba(70,22,22,.18)'; ctx.fillRect(x - w*0.08, y + h*0.22, w*0.16, h*0.02);
-  }
-
-
-  function drawCharacterFigure(ctx, opts, portrait=false, view='front') {
-    const { body='#445', accent='#ccb', skirt=null, sleeve='#d8cab3', face='#efdcc7', hair='#222', eye='dark', helmet=false, flag=false } = opts;
-    const w = portrait ? 180 : 180;
-    const h = portrait ? 220 : 260;
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    if (portrait) {
-      const grad = ctx.createLinearGradient(0,0,0,h);
-      grad.addColorStop(0, 'rgba(18,24,33,.96)');
-      grad.addColorStop(1, 'rgba(6,9,15,.99)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0,0,w,h);
-    }
-
-    const cx = portrait ? 90 : 90;
-    const groundY = portrait ? 214 : 246;
-    const bodyTop = portrait ? 112 : 104;
-    const bodyBottom = portrait ? 182 : 194;
-    const headY = portrait ? 62 : 58;
-    const side = view === 'left' ? -1 : view === 'right' ? 1 : 0;
-    const isBack = view === 'back';
-
-    ctx.save();
-    ctx.fillStyle = portrait ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.28)';
-    ctx.beginPath();
-    ctx.ellipse(cx, groundY-4, portrait ? 34 : 40, portrait ? 10 : 12, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (helmet) {
-      ctx.fillStyle = '#eef2f6';
-      ctx.beginPath(); ctx.ellipse(cx, headY - 18, 34, 16, 0, Math.PI, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#d9dee8'; ctx.fillRect(cx - 35, headY - 18, 70, 10);
-      ctx.fillStyle = '#9aa9ba'; ctx.fillRect(cx - 8, headY - 42, 16, 20);
-    }
-
-    if (!isBack) {
-      const faceGrad = ctx.createLinearGradient(cx, headY-24, cx, headY+24);
-      faceGrad.addColorStop(0, face);
-      faceGrad.addColorStop(1, 'rgba(120,86,72,.76)');
-      ctx.fillStyle = hair;
-      ctx.beginPath(); ctx.ellipse(cx, headY - 4, 36, 34, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = faceGrad;
-      ctx.beginPath(); ctx.ellipse(cx, headY + 2, side === 0 ? 28 : 22, 30, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,.14)';
-      ctx.beginPath(); ctx.ellipse(cx - 10, headY - 5, 7, 5, -0.4, 0, Math.PI*2); ctx.fill();
-      const eyeColor = eye === 'red' ? '#8f2020' : '#141414';
-      ctx.fillStyle = eyeColor;
-      if (side === 0) {
-        ctx.fillRect(cx - 14, headY + 2, 8, 2);
-        ctx.fillRect(cx + 6, headY + 2, 8, 2);
-        ctx.fillStyle = '#80574a'; ctx.fillRect(cx - 1, headY + 10, 2, 9);
-        ctx.fillStyle = 'rgba(70,22,22,.20)'; ctx.fillRect(cx - 8, headY + 20, 16, 2);
-      } else {
-        ctx.fillRect(cx + side*4, headY + 2, 7, 2);
-        ctx.fillStyle = '#80574a'; ctx.fillRect(cx + side*8, headY + 10, 2, 8);
-      }
-    } else {
-      ctx.fillStyle = hair;
-      ctx.beginPath(); ctx.ellipse(cx, headY - 4, 35, 34, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#2c2420'; ctx.fillRect(cx - 20, headY + 8, 40, 8);
-    }
-
-    const leftFront = cx - 26;
-    const rightFront = cx + 26;
-    const sideOffset = 12;
-    ctx.fillStyle = body;
-    ctx.beginPath();
-    ctx.moveTo(leftFront, bodyTop);
-    ctx.lineTo(rightFront, bodyTop);
-    ctx.lineTo(rightFront - 8, bodyBottom);
-    ctx.lineTo(leftFront + 8, bodyBottom);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = shadeColor(body, -18);
-    ctx.beginPath();
-    ctx.moveTo(rightFront, bodyTop);
-    ctx.lineTo(rightFront + sideOffset, bodyTop + 8);
-    ctx.lineTo(rightFront + sideOffset - 6, bodyBottom + 4);
-    ctx.lineTo(rightFront - 8, bodyBottom);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.06)';
-    ctx.fillRect(leftFront + 4, bodyTop + 6, 6, bodyBottom - bodyTop - 18);
-
-    ctx.fillStyle = sleeve;
-    if (side === 0) {
-      ctx.fillRect(cx - 48, bodyTop + 8, 16, 52);
-      ctx.fillRect(cx + 32, bodyTop + 8, 16, 52);
-    } else {
-      ctx.fillRect(cx - 46, bodyTop + 10, 14, 50);
-      ctx.fillRect(cx + 22, bodyTop + 10, 20, 50);
-    }
-    ctx.fillStyle = shadeColor(sleeve, -12);
-    ctx.fillRect(cx + 32, bodyTop + 8, 6, 52);
-
-    if (accent) { ctx.fillStyle = accent; ctx.fillRect(cx - 18, bodyTop + 14, 36, 10); }
-    if (skirt) {
-      ctx.fillStyle = skirt;
-      ctx.beginPath();
-      ctx.moveTo(cx - 24, bodyBottom - 20);
-      ctx.lineTo(cx + 24, bodyBottom - 20);
-      ctx.lineTo(cx + 18, groundY - 18);
-      ctx.lineTo(cx - 18, groundY - 18);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = shadeColor(skirt, -18);
-      ctx.beginPath();
-      ctx.moveTo(cx + 24, bodyBottom - 20);
-      ctx.lineTo(cx + 34, bodyBottom - 12);
-      ctx.lineTo(cx + 28, groundY - 14);
-      ctx.lineTo(cx + 18, groundY - 18);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    ctx.fillStyle = '#1a1c24';
-    ctx.fillRect(cx - 18, groundY - 42, 12, 34);
-    ctx.fillRect(cx + 6, groundY - 42, 12, 34);
-    ctx.fillStyle = '#2a2d36';
-    ctx.fillRect(cx - 20, groundY - 8, 16, 6);
-    ctx.fillRect(cx + 4, groundY - 8, 16, 6);
-
-    if (flag) {
-      ctx.fillStyle = '#d8d8d8'; ctx.fillRect(cx + 44, bodyTop + 12, 5, 70);
-      ctx.fillStyle = '#d23b3b'; ctx.fillRect(cx + 49, bodyTop + 14, 28, 16);
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(cx + 49, bodyTop + 32, 28, 16);
-    }
-
-    if (!portrait) {
-      ctx.strokeStyle = 'rgba(0,0,0,.22)';
-      ctx.strokeRect(18, 10, ctx.canvas.width - 36, ctx.canvas.height - 20);
-    }
-    ctx.restore();
-  }
-
-  function shadeColor(hex, amount) {
-    if (!hex || !hex.startsWith('#')) return hex;
-    let col = hex.slice(1);
-    if (col.length === 3) col = col.split('').map(c => c + c).join('');
-    const num = int(col, 16);
-    const r = max(0, min(255, (num >> 16) + amount));
-    const g = max(0, min(255, ((num >> 8) & 255) + amount));
-    const b = max(0, min(255, (num & 255) + amount));
-    return `rgb(${r},${g},${b})`;
-  }
-
-  function int(v, base) { return parseInt(v, base); }
-  function min(a, b) { return Math.min(a, b); }
-  function max(a, b) { return Math.max(a, b); }
-
-  function makeCharacterSprite(kind, portrait=false, view='front') {
-    const c = document.createElement('canvas');
-    c.width = portrait ? 180 : 180;
-    c.height = portrait ? 220 : 260;
-    const x = c.getContext('2d');
-    x.imageSmoothingEnabled = false;
-    const defs = {
-      okami: { face:'#efdcc7', hair:'#2b2430', body:'#4f3042', accent:'#d1a267', sleeve:'#efdcc7', skirt:'#2d2333' },
-      guest: { face:'#efddc9', hair:'#23262f', body:'#5f6ca0', accent:'#d9dbe8', sleeve:'#efddc9', skirt:'#4a5681' },
-      maid: { face:'#efdcc7', hair:'#f3f3f1', body:'#335c88', accent:'#e8eef8', sleeve:'#efdcc7', skirt:'#1d3048' },
-      guest202: { face:'#f0ddc9', hair:'#403126', body:'#6f5a45', accent:'#c9b89a', sleeve:'#f0ddc9', skirt:'#514234' },
-      guest203: { face:'#edd9c4', hair:'#1b1f26', body:'#737b87', accent:'#d7dee8', sleeve:'#edd9c4', skirt:'#49505b' },
-      guide: { face:'#e7dccf', hair:'#4a545f', body:'#2d4b6b', accent:'#eef1f5', sleeve:'#d6d9df', skirt:'#223447', eye:'red', helmet:true, flag:true },
-    };
-    if (kind === 'narrator') {
-      const grad = x.createLinearGradient(0,0,0,c.height);
-      grad.addColorStop(0, 'rgba(20,28,40,.95)'); grad.addColorStop(1, 'rgba(5,8,13,.98)');
-      x.fillStyle = grad; x.fillRect(0,0,c.width,c.height);
-      x.fillStyle = '#cfaa74'; x.font = 'bold 44px sans-serif'; x.fillText('宵', 60, 110); x.fillText('宿', 60, 160);
-      return c;
-    }
-    drawCharacterFigure(x, defs[kind], portrait, view);
-    if (kind === 'guide' && portrait) {
-      x.fillStyle = 'rgba(215,100,100,.18)';
-      x.fillRect(0,0,c.width,c.height);
-    }
-    return c;
-  }
-
-  function makeCharacterSet(kind) {
-    return {
-      front: makeCharacterSprite(kind, false, 'front'),
-      left: makeCharacterSprite(kind, false, 'left'),
-      right: makeCharacterSprite(kind, false, 'right'),
-      back: makeCharacterSprite(kind, false, 'back'),
-      portrait: makeCharacterSprite(kind, true, 'front')
-    };
-  }
-
-  function makePortrait(kind) { return makeCharacterSprite(kind, true, 'front'); }
-
-  function drawScene(dt) {
-    const area = currentArea();
-    const skyGrad = g.createLinearGradient(0, 0, 0, OFF_H / 2);
-    skyGrad.addColorStop(0, area.skyTop); skyGrad.addColorStop(1, area.skyBottom);
-    g.fillStyle = skyGrad; g.fillRect(0, 0, OFF_W, OFF_H / 2);
-    const floorGrad = g.createLinearGradient(0, OFF_H / 2, 0, OFF_H);
-    floorGrad.addColorStop(0, area.floorA); floorGrad.addColorStop(1, area.floorB);
-    g.fillStyle = floorGrad; g.fillRect(0, OFF_H / 2, OFF_W, OFF_H / 2);
-
-    drawFloorPattern(area);
-    drawCeilingBeams(area);
-    const zBuffer = new Array(OFF_W).fill(MAX_DEPTH);
-
-    for (let x = 0; x < OFF_W; x++) {
-      const cameraX = (x / OFF_W) - 0.5;
-      const rayAngle = player.a + cameraX * FOV;
-      const rayDirX = Math.cos(rayAngle);
-      const rayDirY = Math.sin(rayAngle);
-      let depth = 0.02;
-      let hit = null;
-      while (depth < MAX_DEPTH) {
-        const rx = player.x + rayDirX * depth;
-        const ry = player.y + rayDirY * depth;
-        const t = tileAt(rx, ry);
-        if (t !== '.') { hit = { tile:t, x:rx, y:ry }; break; }
-        depth += 0.02;
-      }
-      if (!hit) continue;
-      zBuffer[x] = depth;
-      const corrected = depth * Math.cos(rayAngle - player.a);
-      const wallH = Math.min(OFF_H * 2, (OFF_H / Math.max(0.01, corrected)) * 0.92);
-      const y0 = Math.floor(OFF_H / 2 - wallH / 2);
-      const tex = textures[hit.tile] || textures['#'];
-      const fx = hit.x - Math.floor(hit.x);
-      const fy = hit.y - Math.floor(hit.y);
-      const texX = Math.floor(((fx > fy ? fx : fy) % 1) * tex.width);
-      g.drawImage(tex, texX, 0, 1, tex.height, x, y0, 1, wallH);
-      const shade = Math.min(.78, corrected / 18 + (state.phase === 'night' ? .10 : 0));
-      g.fillStyle = `rgba(0,0,0,${shade})`;
-      g.fillRect(x, y0, 1, wallH);
-    }
-
-    drawSprites(zBuffer);
-    drawAreaSigns(zBuffer);
-    drawAreaDecor();
-    if (state.phase === 'night') drawNightEffects(dt);
-    if (state.chaseActive) drawChaseWarning();
-    drawVignette();
-  }
-
-  function drawFloorPattern(area) {
-    for (let y = OFF_H/2; y < OFF_H; y += 3) {
-      const t = (y - OFF_H/2) / (OFF_H/2);
-      g.fillStyle = t > .65 ? area.floorB : (y % 6 === 0 ? area.floorA : area.floorB);
-      g.fillRect(0, y, OFF_W, 1);
-      if (y % 18 === 0) {
-        g.fillStyle = 'rgba(255,255,255,.025)';
-        g.fillRect(0, y, OFF_W, 1);
-      }
-    }
-    g.strokeStyle = 'rgba(0,0,0,.10)';
-    for (let x = 0; x < OFF_W; x += 22) {
-      g.beginPath();
-      g.moveTo(x, OFF_H/2);
-      g.lineTo(OFF_W/2 + (x-OFF_W/2)*1.9, OFF_H);
-      g.stroke();
-    }
-  }
-
-  function drawCeilingBeams(area) {
-    g.fillStyle = 'rgba(0,0,0,.12)';
-    for (let y = 14; y < OFF_H/2; y += 18) g.fillRect(0, y, OFF_W, 2);
-    g.fillStyle = 'rgba(255,230,170,.02)';
-    g.fillRect(0, 0, OFF_W, OFF_H/2);
-  }
-
-  function project(wx, wy) {
-    const dx = wx - player.x;
-    const dy = wy - player.y;
-    const dist = Math.hypot(dx, dy);
-    const angle = normalizeAngle(Math.atan2(dy, dx) - player.a);
-    if (Math.abs(angle) > FOV * 0.72) return null;
-    const corrected = dist * Math.cos(angle);
-    if (corrected <= 0.05) return null;
-    const screenX = (angle / FOV + 0.5) * OFF_W;
-    return { screenX, dist, corrected, angle };
-  }
-
-  function drawSpriteCanvas(proj, spriteCanvas, scaleFactor = 1) {
-    const h = Math.min(OFF_H * 1.85, (OFF_H / Math.max(0.08, proj.corrected)) * scaleFactor);
-    const w = h * (spriteCanvas.width / spriteCanvas.height);
-    const x = proj.screenX - w / 2;
-    const y = OFF_H / 2 - h * 0.60;
-    g.drawImage(spriteCanvas, x, y, w, h);
-    const darkness = Math.min(.74, proj.corrected / 16 + (state.phase === 'night' ? .08 : 0));
-    g.fillStyle = `rgba(0,0,0,${darkness})`;
-    g.fillRect(x, y, w, h);
-  }
-
-
-  function drawProjectedShadow(proj, scale = 1) {
-    const w = Math.min(OFF_W * 0.22, (OFF_W / Math.max(0.18, proj.corrected)) * 0.18 * scale);
-    const h = w * 0.36;
-    const x = proj.screenX - w / 2;
-    const y = OFF_H / 2 + Math.min(OFF_H * 0.34, (OFF_H / Math.max(0.18, proj.corrected)) * 0.55);
-    g.fillStyle = 'rgba(0,0,0,.22)';
-    g.beginPath();
-    g.ellipse(proj.screenX, y, w / 2, h / 2, 0, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  function getCharacterView(sprite) {
-    const set = characterSpriteSets[sprite.kind];
-    if (!set) return null;
-    const facing = sprite.facing ?? (Math.PI / 2);
-    const angleToPlayer = Math.atan2(player.y - sprite.y, player.x - sprite.x);
-    const rel = normalizeAngle(angleToPlayer - facing);
-    if (rel > Math.PI * 0.75 || rel < -Math.PI * 0.75) return set.back;
-    if (rel > Math.PI * 0.25 && rel < Math.PI * 0.75) return set.right;
-    if (rel < -Math.PI * 0.25 && rel > -Math.PI * 0.75) return set.left;
-    return set.front;
-  }
-
-  function drawSprites(zBuffer) {
-    const sprites = activeSprites().filter(s => s.kind && (spriteCanvases[s.kind] || characterSpriteSets[s.kind]));
-    const projected = [];
-    for (const s of sprites) {
-      const proj = project(s.x, s.y);
-      if (!proj) continue;
-      projected.push({ ...s, proj });
-    }
-    projected.sort((a, b) => b.proj.corrected - a.proj.corrected);
-    for (const s of projected) {
-      const spriteCanvas = characterSpriteSets[s.kind] ? getCharacterView(s) : spriteCanvases[s.kind];
-      if (!spriteCanvas) continue;
-      const scale = s.kind === 'guide' ? 1.38 : s.type === 'item' ? 0.95 : 1.24;
-      const h = Math.min(OFF_H * 1.8, (OFF_H / Math.max(0.08, s.proj.corrected)) * scale);
-      const w = h * (spriteCanvas.width / spriteCanvas.height);
-      const x = Math.floor(s.proj.screenX - w / 2);
-      let visible = false;
-      const x0 = Math.max(0, x);
-      const x1 = Math.min(OFF_W - 1, Math.floor(x + w));
-      for (let sx = x0; sx <= x1; sx++) {
-        if (s.proj.corrected < zBuffer[sx] + 0.12) { visible = true; break; }
-      }
-      if (!visible) continue;
-      if (characterSpriteSets[s.kind]) drawProjectedShadow(s.proj, scale);
-      drawSpriteCanvas(s.proj, spriteCanvas, scale);
-    }
-  }
-
-  function drawAreaSigns(zBuffer) {
-    const signs = currentArea().signs || [];
-    for (const sign of signs) {
-      const proj = project(sign.x, sign.y);
-      if (!proj) continue;
-      const h = Math.min(44, (OFF_H / Math.max(0.1, proj.corrected)) * 0.3);
-      const w = sign.text.length * 8 + 18;
-      const x = proj.screenX - w / 2;
-      const y = OFF_H / 2 - h - 4;
-      if (proj.corrected > zBuffer[Math.max(0, Math.min(OFF_W - 1, Math.floor(proj.screenX)))] + .2) continue;
-      g.fillStyle = 'rgba(10,8,8,.85)'; g.fillRect(x, y, w, h);
-      g.strokeStyle = '#d5bc87'; g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-      g.fillStyle = '#f5efe5'; g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillText(sign.text, x + w / 2, y + h / 2 + 4);
-    }
-  }
-
-
-function drawAreaDecor() {
-  const name = player.area;
-  if (name === 'lobby') {
-    g.fillStyle = 'rgba(230,180,90,.08)';
-    g.fillRect(18, 26, 52, 80); g.fillRect(OFF_W-72, 24, 48, 78);
-  }
-  if (name === 'hall' || name === 'courtyard') {
-    for (let i=0;i<3;i++) {
-      const px = 60 + i*110;
-      const glow = g.createRadialGradient(px, 52, 2, px, 52, 38);
-      glow.addColorStop(0, 'rgba(243,201,118,.20)');
-      glow.addColorStop(1, 'rgba(243,201,118,0)');
-      g.fillStyle = glow; g.beginPath(); g.arc(px, 52, 38, 0, Math.PI*2); g.fill();
-    }
-  }
-  if (name === 'courtyard') {
-    g.fillStyle = 'rgba(120,160,190,.06)';
-    for (let i=0;i<18;i++) g.fillRect((i*23 + performance.now()*0.03)%OFF_W, 0, 1, OFF_H);
-  }
-  if (name === 'annex') {
-    g.fillStyle = 'rgba(180,210,230,.04)';
-    g.fillRect(0, 0, OFF_W, OFF_H);
-  }
-}
-
-function drawVignette() {
-  const grad = g.createRadialGradient(OFF_W/2, OFF_H/2, OFF_H*0.18, OFF_W/2, OFF_H/2, OFF_W*0.7);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,.36)');
-  g.fillStyle = grad;
-  g.fillRect(0,0,OFF_W,OFF_H);
-}
-
-  function drawNightEffects(dt) {
-    g.fillStyle = 'rgba(6, 12, 20, 0.24)'; g.fillRect(0, 0, OFF_W, OFF_H);
-    g.fillStyle = 'rgba(255,255,255,0.03)';
-    const now = performance.now();
-    for (let i = 0; i < 22; i++) {
-      const x = ((i * 37 + now * 0.03) % OFF_W) | 0;
-      const y = ((i * 17 + now * 0.02) % OFF_H) | 0;
-      g.fillRect(x, y, 1, 1);
-    }
-    if (state.step >= 8) {
-      const flick = (Math.sin(now * 0.013) * 0.5 + 0.5) * 0.18;
-      g.fillStyle = `rgba(255,255,255,${flick})`;
-      g.fillRect(0, 0, OFF_W, 3);
-    }
-  }
-
-  function drawChaseWarning() {
-    const flash = (Math.sin(performance.now() * 0.024) * 0.5 + 0.5) * 0.18;
-    g.fillStyle = `rgba(180,20,20,${flash})`;
-    g.fillRect(0, 0, OFF_W, OFF_H);
-    g.fillStyle = 'rgba(255,255,255,.76)';
-    g.font = 'bold 16px sans-serif';
-    g.textAlign = 'center';
-    g.fillText('誘導員が追ってくる', OFF_W / 2, 26);
-  }
-
-  function drawFrame(dt) {
-    state.pulse += dt;
-    if (state.areaFlash > 0) state.areaFlash = Math.max(0, state.areaFlash - dt * 1.6);
-    drawScene(dt);
-    if (state.areaFlash > 0) {
-      g.fillStyle = `rgba(255, 236, 189, ${state.areaFlash * 0.18})`;
-      g.fillRect(0,0,OFF_W,OFF_H);
-    }
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
-  }
-
-  function updateGuide(dt) {
-    if (!state.chaseActive || state.inDialogue || state.ending || state.menuOpen) return;
-    if (!guide.active || guide.area !== player.area) return;
-    const dx = player.x - guide.x;
-    const dy = player.y - guide.y;
-    const d = Math.hypot(dx, dy);
-    if (d < 0.58) {
-      endGame('誘導員に捕まった', '青いノートを持ったまま順番から外れたあなたを、白ヘルメットの誘導員が静かに回収した。v17では、宿帳庫・離れ通路・地下記録庫の三段階追跡がゲームオーバー条件付きで入っています。');
-      return;
-    }
-    const move = guide.speed * dt;
-    const nx = guide.x + (dx / Math.max(0.001, d)) * move;
-    const ny = guide.y + (dy / Math.max(0.001, d)) * move;
-    const map = areas[guide.area].map;
-    const solidAt = (x, y) => {
-      const mx = Math.floor(x), my = Math.floor(y);
-      if (mx < 0 || my < 0 || my >= map.length || mx >= map[0].length) return true;
-      return map[my][mx] !== '.';
-    };
-    if (!solidAt(nx, guide.y)) guide.x = nx;
-    if (!solidAt(guide.x, ny)) guide.y = ny;
-  }
-
-  function update(dt) {
-    if (state.transitionLock > 0) state.transitionLock = Math.max(0, state.transitionLock - dt);
-    if (!state.inDialogue && !state.menuOpen && !state.ending && state.transitionLock <= 0) {
-      const speed = player.speed * (keys.shift ? 1.34 : 1);
-      const moveForward = (keys.w ? 1 : 0) - (keys.s ? 1 : 0) + (-moveInput.y);
-      const moveSide = (keys.d ? 1 : 0) - (keys.a ? 1 : 0) + moveInput.x;
-      const lookTurn = lookInput.dx * 0.0042;
-      player.a += lookTurn;
-      lookInput.dx = 0;
-      const sin = Math.sin(player.a), cos = Math.cos(player.a);
-      const vx = (cos * moveForward + Math.cos(player.a + Math.PI / 2) * moveSide) * speed * dt;
-      const vy = (sin * moveForward + Math.sin(player.a + Math.PI / 2) * moveSide) * speed * dt;
-      tryMove(player.x + vx, player.y + vy);
-    }
-
-    updateGuide(dt);
-    maybeAutoPortal();
-
-    const n = (!state.inDialogue && !state.ending) ? getNearbyInteraction() : null;
-    state.nearby = n;
-    if (n && n.prompt) {
-      promptBox.textContent = n.prompt;
-      promptBox.classList.remove('hidden');
-    } else {
-      promptBox.classList.add('hidden');
-    }
-
-    if (state.lastStatusTimer > 0) {
-      state.lastStatusTimer = Math.max(0, state.lastStatusTimer - dt);
-      statusBox.style.opacity = String(Math.min(1, state.lastStatusTimer * 1.4));
-    } else {
-      statusBox.style.opacity = '0.35';
-    }
-
-    updateDistanceBox();
-    drawMiniMap();
-    drawFrame(dt);
-  }
-
-  function tryMove(nx, ny) {
-    if (!isSolid(nx, player.y)) player.x = nx;
-    if (!isSolid(player.x, ny)) player.y = ny;
-  }
-
-  function resize() {
-    canvas.width = Math.floor(window.innerWidth * Math.min(window.devicePixelRatio || 1, 2));
-    canvas.height = Math.floor(window.innerHeight * Math.min(window.devicePixelRatio || 1, 2));
-    canvas.style.width = window.innerWidth + 'px';
-    canvas.style.height = window.innerHeight + 'px';
-  }
-
-  function handlePointerDown(e) {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    if (movePad.contains(e.target)) return;
-    if (dialogueBox.contains(e.target)) return;
-    if (menuPanel.contains(e.target)) return;
-    if (x > rect.width * 0.45 && !state.inDialogue && !state.menuOpen && state.transitionLock <= 0) {
-      lookInput.active = true;
-      lookInput.lastX = e.clientX;
-      lookInput.pointerId = e.pointerId;
-    }
-  }
-
-  function handlePointerMove(e) {
-    if (lookInput.active && e.pointerId === lookInput.pointerId) {
-      lookInput.dx += e.clientX - lookInput.lastX;
-      lookInput.lastX = e.clientX;
-    }
-  }
-
-  function handlePointerUp(e) {
-    if (lookInput.active && e.pointerId === lookInput.pointerId) {
-      lookInput.active = false;
-      lookInput.pointerId = null;
-    }
-  }
-
-  function setupMovePad() {
-    const center = () => {
-      moveKnob.style.left = '50%';
-      moveKnob.style.top = '50%';
-      moveInput.x = 0;
-      moveInput.y = 0;
-    };
-    center();
-    const updatePad = (clientX, clientY) => {
-      const rect = movePad.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = clientX - cx;
-      const dy = clientY - cy;
-      const max = rect.width * 0.32;
-      const dist = Math.hypot(dx, dy);
-      const clamped = dist > max ? max / dist : 1;
-      const ox = dx * clamped;
-      const oy = dy * clamped;
-      moveKnob.style.left = `${50 + (ox / (rect.width / 2)) * 50}%`;
-      moveKnob.style.top = `${50 + (oy / (rect.height / 2)) * 50}%`;
-      moveInput.x = ox / max;
-      moveInput.y = oy / max;
-    };
-    movePad.addEventListener('pointerdown', (e) => {
-      moveInput.active = true;
-      moveInput.pointerId = e.pointerId;
-      updatePad(e.clientX, e.clientY);
-    });
-    window.addEventListener('pointermove', (e) => {
-      if (moveInput.active && e.pointerId === moveInput.pointerId) updatePad(e.clientX, e.clientY);
-    });
-    window.addEventListener('pointerup', (e) => {
-      if (moveInput.active && e.pointerId === moveInput.pointerId) {
-        moveInput.active = false;
-        moveInput.pointerId = null;
-        center();
-      }
-    });
-    window.addEventListener('pointercancel', () => {
-      moveInput.active = false; moveInput.pointerId = null; center();
-    });
-  }
-
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'w' || e.key === 'W') keys.w = true;
-    else if (e.key === 'a' || e.key === 'A') keys.a = true;
-    else if (e.key === 's' || e.key === 'S') keys.s = true;
-    else if (e.key === 'd' || e.key === 'D') keys.d = true;
-    else if (e.key === 'Shift') keys.shift = true;
-    else if (e.key === 'e' || e.key === 'E' || e.key === 'Enter') act();
-    else if (e.key === 'Escape') toggleMenu();
-  });
-  window.addEventListener('keyup', (e) => {
-    if (e.key === 'w' || e.key === 'W') keys.w = false;
-    else if (e.key === 'a' || e.key === 'A') keys.a = false;
-    else if (e.key === 's' || e.key === 'S') keys.s = false;
-    else if (e.key === 'd' || e.key === 'D') keys.d = false;
-    else if (e.key === 'Shift') keys.shift = false;
-  });
-
-  canvas.addEventListener('pointerdown', handlePointerDown);
-  window.addEventListener('pointermove', handlePointerMove);
-  window.addEventListener('pointerup', handlePointerUp);
-  window.addEventListener('pointercancel', handlePointerUp);
-
-  menuBtn.addEventListener('click', () => toggleMenu());
-  saveBtn.addEventListener('click', () => { saveGame(); toggleMenu(false); });
-  loadBtn.addEventListener('click', () => { loadGame(); toggleMenu(false); });
-  hudToggleBtn.addEventListener('click', () => { state.hudMinimal = !state.hudMinimal; applyHudState(); });
-  actBtn.addEventListener('click', act);
-  dialogueBox.addEventListener('click', act);
-  setupMovePad();
-
-document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
-let __lastTouchEnd = 0;
-document.addEventListener('touchend', (e) => {
-  const now = Date.now();
-  if (now - __lastTouchEnd < 320) e.preventDefault();
-  __lastTouchEnd = now;
-}, { passive: false });
-document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
-  window.addEventListener('resize', resize);
-
-  resize();
-  applyHudState();
-  updatePortrait('narrator');
-  if (window.__YOINADO_CONTINUE__) {
-    if (!loadGame()) startNew();
+const SAVE_KEY = 'yoiyado_real3d_a1';
+const TAU = Math.PI * 2;
+
+const canvas = document.getElementById('game-canvas');
+const hud = document.getElementById('hud');
+const promptEl = document.getElementById('prompt');
+const objectiveTextEl = document.getElementById('objective-text');
+const objectiveSubEl = document.getElementById('objective-sub');
+const areaLabelEl = document.getElementById('area-label');
+const phaseLabelEl = document.getElementById('phase-label');
+const dayLabelEl = document.getElementById('day-label');
+const distanceLabelEl = document.getElementById('distance-label');
+const minimap = document.getElementById('minimap');
+const minimapCtx = minimap.getContext('2d');
+const menuBtn = document.getElementById('menu-btn');
+const menuOverlay = document.getElementById('menu');
+const dialogueOverlay = document.getElementById('dialogue');
+const portraitEl = document.getElementById('portrait');
+const dialogueNameEl = document.getElementById('dialogue-name');
+const dialogueTextEl = document.getElementById('dialogue-text');
+const gameOverEl = document.getElementById('gameover');
+const endingEl = document.getElementById('ending');
+const actBtn = document.getElementById('act-btn');
+const lookZone = document.getElementById('look-zone');
+const joystickBase = document.getElementById('joystick-base');
+const joystickKnob = document.getElementById('joystick-knob');
+const joystickZone = document.getElementById('joystick-zone');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x06080d);
+scene.fog = new THREE.Fog(0x080a10, 16, 42);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.8));
+renderer.setSize(window.innerWidth, window.innerHeight, false);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 90);
+const player = { x: 0, z: 0, yaw: 0, pitch: 0, height: 1.62, radius: 0.33, speed: 2.6, run: 1.32 };
+
+const rootGroup = new THREE.Group();
+scene.add(rootGroup);
+const areaGroup = new THREE.Group();
+const dynamicGroup = new THREE.Group();
+rootGroup.add(areaGroup);
+rootGroup.add(dynamicGroup);
+
+const hemi = new THREE.HemisphereLight(0xbdd2ff, 0x2f2419, 0.7);
+scene.add(hemi);
+const dirLight = new THREE.DirectionalLight(0xfff0da, 0.9);
+dirLight.position.set(6, 10, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
+dirLight.shadow.camera.left = -18;
+dirLight.shadow.camera.right = 18;
+dirLight.shadow.camera.top = 18;
+dirLight.shadow.camera.bottom = -18;
+scene.add(dirLight);
+
+const state = {
+  area: 'lobby',
+  day: 1,
+  phaseLabel: '昼勤務',
+  step: 'talk_okami',
+  hudHidden: false,
+  menuOpen: false,
+  dialogueQueue: [],
+  checkpoint: null,
+  chase: null,
+  guide: null,
+  lastDoorId: null,
+  doorCooldownUntil: 0,
+  questFlags: {},
+  ended: false
+};
+
+const input = {
+  keys: Object.create(null),
+  lookDragging: false,
+  lookId: null,
+  joyId: null,
+  joyX: 0,
+  joyY: 0,
+  pointerX: 0,
+  pointerY: 0,
+  mouseDrag: false,
+  interactQueued: false
+};
+
+const colliders = [];
+const doors = [];
+const npcs = [];
+const items = [];
+const areaAnchors = {};
+const graph = {
+  lobby: { corridor: 12, kitchen: 8, archive: 9 },
+  kitchen: { lobby: 8 },
+  corridor: { lobby: 12, room201: 6, bath: 12, north: 13 },
+  room201: { corridor: 6 },
+  bath: { corridor: 12 },
+  archive: { lobby: 9, detached: 14 },
+  north: { corridor: 13, detached: 8 },
+  detached: { north: 8, archive: 14 }
+};
+
+const areaLabels = {
+  lobby: '帳場', kitchen: '厨房', corridor: '客室廊下', room201: '201号室', bath: '浴場前', archive: '宿帳庫', north: '北廊下', detached: '離れ通路'
+};
+
+const stepDefs = {
+  talk_okami: { day: 1, phase: '昼勤務', text: '女将に話しかける', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
+  get_tray: { day: 1, phase: '昼勤務', text: '厨房でお茶の盆を受け取る', sub: '厨房へ', targetArea: 'kitchen', targetPos: { x: 0, z: -1 }, trigger: { type: 'item', id: 'tray' } },
+  deliver_201: { day: 1, phase: '昼勤務', text: '201号室の客にお茶を届ける', sub: '201号室へ', targetArea: 'room201', targetPos: { x: 0, z: -1.8 }, trigger: { type: 'npc', id: 'guest201' } },
+  report_okami: { day: 1, phase: '昼勤務', text: '帳場へ戻って女将に報告する', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
+  answer_phone: { day: 1, phase: '夕方', text: '浴場前の黒電話に出る', sub: '浴場前へ', targetArea: 'bath', targetPos: { x: 0, z: -2 }, trigger: { type: 'item', id: 'phone' } },
+  inspect_archive: { day: 1, phase: '深夜調査', text: '宿帳庫で青い宿帳を探す', sub: '宿帳庫へ', targetArea: 'archive', targetPos: { x: 0, z: -3 }, trigger: { type: 'item', id: 'blueLedger' } },
+  escape_archive: { day: 1, phase: '深夜追跡', text: '誘導員から逃げて帳場へ戻る', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
+  talk_maid: { day: 2, phase: '昼勤務', text: '廊下で仲居に昨夜のことを聞く', sub: '客室廊下へ', targetArea: 'corridor', targetPos: { x: 0, z: 0 }, trigger: { type: 'npc', id: 'maid' } },
+  inspect_north: { day: 2, phase: '夕方', text: '北廊下の閉ざされた札を調べる', sub: '北廊下へ', targetArea: 'north', targetPos: { x: 0, z: -2.5 }, trigger: { type: 'item', id: 'sealTag' } },
+  inspect_detached: { day: 2, phase: '深夜調査', text: '離れ通路の祠を調べる', sub: '離れ通路へ', targetArea: 'detached', targetPos: { x: 0, z: -3 }, trigger: { type: 'item', id: 'altar' } },
+  escape_detached: { day: 2, phase: '深夜追跡', text: '誘導員から逃げて帳場へ戻る', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } },
+  finale: { day: 2, phase: '終幕', text: '女将に宿帳のことを問いただす', sub: '帳場へ', targetArea: 'lobby', targetPos: { x: 0, z: -2 }, trigger: { type: 'npc', id: 'okami' } }
+};
+
+const storyNodes = {
+  okami_intro: [
+    ['女将', 'よう来たね。ここは人手が足りていない。\n今夜から帳場の手伝いをしてもらう。', 'okami'],
+    ['女将', 'まずは厨房へ行って、201号室へお茶の盆を届けておくれ。\n道は短いが、夜は北廊下に近づかないこと。', 'okami']
+  ],
+  tray: [
+    ['料理番', '女将さんから聞いてるよ。\n盆を持ったら、こぼさないようにまっすぐ201へ。', 'chef']
+  ],
+  guest201: [
+    ['201号室の客', '……遅かったな。\n今朝からこの宿、変な音がする。壁の向こうを誰か歩いてる。', 'guest'],
+    ['201号室の客', 'さっきも、赤と白の旗を持った男が廊下の先に立っていた。\n宿の人間なら妙な格好だ。', 'guest']
+  ],
+  report_okami: [
+    ['女将', '客の話は気にしなくていい。\n古い建物だから、音はいろいろ響くものさ。', 'okami'],
+    ['女将', '……だが、もし今夜、黒電話が鳴ったら必ず出ておくれ。', 'okami']
+  ],
+  phone: [
+    ['黒電話', '――……カタン。\n受話器の向こうから、誰かの息だけが聞こえる。', 'phone'],
+    ['黒電話', '低い声', '宿帳を、見るな。……いや、見ろ。\n北の札より先に、帳場の奥を確かめろ。', 'phone']
+  ],
+  blueLedger: [
+    ['主人公', '青い宿帳だ。\n同じ名前が、年を跨いで何度も記されている。', 'hero'],
+    ['主人公', 'ページの端に、赤いインクで「誘導員に従うな」とある。', 'hero']
+  ],
+  escape_archive: [
+    ['女将', '見たのかい。\nそれなら、今夜のうちに帳場へ隠しておくしかない。', 'okami'],
+    ['女将', '明日は、廊下の仲居にだけ話を聞いておくれ。\n他の客には悟られないように。', 'okami']
+  ],
+  maid: [
+    ['仲居', '昨夜、帳場の灯りが消えたあと……北廊下の奥で、旗が擦れる音がしました。', 'maid'],
+    ['仲居', '昔の火事で死んだ誘導員の噂、聞いたことありますか。\n道を誤らせる男です。', 'maid']
+  ],
+  sealTag: [
+    ['主人公', '閉ざされた札の裏に、細い鍵が隠されている。\n札そのものは焦げた匂いがする。', 'hero']
+  ],
+  altar: [
+    ['主人公', '離れの祠の下に、宿帳の切れ端と写真がある。\n女将と、見覚えのない誘導員の写真だ。', 'hero'],
+    ['主人公', '足音。……また来る。', 'hero']
+  ],
+  finale: [
+    ['女将', 'あれは追う者ではなく、連れていく者だよ。\n昔この宿で、客を避難させるはずだった男さ。', 'okami'],
+    ['女将', '火事の夜、誰も救えなかった。\nだから今も、間違った道へ客を導こうとする。', 'okami'],
+    ['女将', '……宿帳は預かっておく。\n続きは、明日の夜に。', 'okami']
+  ]
+};
+
+const faceTextures = {
+  okami: makeFaceTexture('#f0d7c6', '#201515', '#7b2932', 'okami'),
+  maid: makeFaceTexture('#efd5c2', '#1e2228', '#63543f', 'maid'),
+  guest: makeFaceTexture('#e8d0bc', '#16191d', '#4d4d4d', 'guest'),
+  guide: makeFaceTexture('#d5dce5', '#4b0d0d', '#98a4b4', 'guide'),
+  chef: makeFaceTexture('#ebdccb', '#1a1a1a', '#ffffff', 'chef'),
+  hero: makeFaceTexture('#e7d0bc', '#1d1d1d', '#303030', 'hero'),
+  phone: makeFaceTexture('#0f1216', '#d7d7d7', '#0f1216', 'phone')
+};
+
+function makeFaceTexture(skin, eye, accent, type) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = skin;
+  g.fillRect(0, 0, 256, 256);
+  g.fillStyle = eye;
+  if (type === 'guide') {
+    g.fillRect(84, 110, 20, 12);
+    g.fillRect(152, 110, 20, 12);
+    g.fillStyle = '#7a0e12';
+    g.fillRect(96, 156, 64, 8);
   } else {
-    startNew();
+    g.fillRect(86, 100, 18, 10);
+    g.fillRect(152, 100, 18, 10);
+    g.fillStyle = '#8b544d';
+    g.fillRect(106, 152, 44, 6);
   }
+  g.fillStyle = accent;
+  if (type === 'okami') {
+    g.fillRect(44, 42, 168, 34);
+  } else if (type === 'maid') {
+    g.fillRect(36, 28, 184, 42);
+  } else if (type === 'guest') {
+    g.fillRect(28, 30, 200, 36);
+  } else if (type === 'guide') {
+    g.fillRect(54, 10, 148, 44);
+    g.fillStyle = '#ffffff';
+    g.fillRect(112, 58, 32, 22);
+  } else if (type === 'chef') {
+    g.fillRect(58, 18, 140, 30);
+    g.fillStyle = '#ffffff';
+    g.fillRect(74, 0, 108, 34);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
-  let last = performance.now();
-  function loop(now) {
-    const dt = Math.min(0.033, (now - last) / 1000);
-    last = now;
-    update(dt);
-    requestAnimationFrame(loop);
+const materials = {
+  wood: new THREE.MeshStandardMaterial({ map: makeWoodTexture(512, 512), roughness: 0.88 }),
+  darkWood: new THREE.MeshStandardMaterial({ map: makeWoodTexture(512, 512, true), roughness: 0.92 }),
+  shoji: new THREE.MeshStandardMaterial({ map: makeShojiTexture(512, 512), roughness: 0.98 }),
+  tatami: new THREE.MeshStandardMaterial({ map: makeTatamiTexture(512, 512), roughness: 1 }),
+  tile: new THREE.MeshStandardMaterial({ map: makeTileTexture(512, 512), roughness: 0.95 }),
+  carpet: new THREE.MeshStandardMaterial({ map: makeCarpetTexture(512, 512), roughness: 1 }),
+  wallWarm: new THREE.MeshStandardMaterial({ color: 0xdac7a2, roughness: 1 }),
+  wallRose: new THREE.MeshStandardMaterial({ color: 0xb78587, roughness: 1 }),
+  wallDark: new THREE.MeshStandardMaterial({ color: 0x3a2d23, roughness: 1 }),
+  black: new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 }),
+  brass: new THREE.MeshStandardMaterial({ color: 0xc9a96e, roughness: 0.45, metalness: 0.4 }),
+  paper: new THREE.MeshStandardMaterial({ color: 0xf6f0df, roughness: 1 })
+};
+
+function makeWoodTexture(w, h, dark){
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d');
+  const base=dark? '#4a3729':'#7a5b42';
+  const hi=dark? '#5c4837':'#946f52';
+  const lo=dark? '#37271d':'#654c39';
+  g.fillStyle=base; g.fillRect(0,0,w,h);
+  for(let i=0;i<260;i++){
+    g.fillStyle = i%3===0? hi: lo;
+    const y = Math.random()*h;
+    g.fillRect(0,y,w,Math.random()*2+1);
   }
-  requestAnimationFrame(loop);
+  const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2,2); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+}
+function makeShojiTexture(w,h){
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d');
+  g.fillStyle='#f1ebdc'; g.fillRect(0,0,w,h);
+  g.strokeStyle='#5c3d23'; g.lineWidth=10;
+  for(let x=0;x<=w;x+=w/4){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); }
+  for(let y=0;y<=h;y+=h/4){ g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); }
+  const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; return tex;
+}
+function makeTatamiTexture(w,h){
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d');
+  g.fillStyle='#8a8c6a'; g.fillRect(0,0,w,h);
+  for(let i=0;i<600;i++){
+    g.strokeStyle = i%2? 'rgba(85,92,62,.5)' : 'rgba(137,144,106,.38)';
+    g.beginPath(); const x=Math.random()*w; g.moveTo(x,0); g.lineTo(x+Math.random()*20-10,h); g.stroke();
+  }
+  const tex=new THREE.CanvasTexture(c); tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(2,2); tex.colorSpace=THREE.SRGBColorSpace; return tex;
+}
+function makeTileTexture(w,h){
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d');
+  g.fillStyle='#6e6f72'; g.fillRect(0,0,w,h); g.strokeStyle='rgba(255,255,255,.08)';
+  for(let x=0;x<=w;x+=64){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();}
+  for(let y=0;y<=h;y+=64){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();}
+  const tex=new THREE.CanvasTexture(c); tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(4,4); tex.colorSpace=THREE.SRGBColorSpace; return tex;
+}
+function makeCarpetTexture(w,h){
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d');
+  g.fillStyle='#3b1c1c'; g.fillRect(0,0,w,h);
+  for(let i=0;i<1000;i++){ g.fillStyle = i%2?'rgba(120,40,40,.18)':'rgba(50,12,12,.18)'; g.fillRect(Math.random()*w, Math.random()*h, 2, 2);}  
+  const tex=new THREE.CanvasTexture(c); tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(3,3); tex.colorSpace=THREE.SRGBColorSpace; return tex;
+}
+
+function clearArray(arr){ arr.length = 0; }
+function disposeHierarchy(obj){ obj.traverse(child => { if (child.geometry) child.geometry.dispose?.(); }); }
+
+function addCollider(x1,z1,x2,z2){ colliders.push({ x1: Math.min(x1,x2), z1: Math.min(z1,z2), x2: Math.max(x1,x2), z2: Math.max(z1,z2) }); }
+function addBoxCollider(x,z,w,d){ addCollider(x - w/2, z - d/2, x + w/2, z + d/2); }
+
+function createFloor(width, depth, material, y){
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.2, depth), material);
+  mesh.position.set(0, y || -0.1, 0);
+  mesh.receiveShadow = true;
+  areaGroup.add(mesh);
+  return mesh;
+}
+function createCeiling(width, depth, color){
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.16, depth), new THREE.MeshStandardMaterial({ color: color || 0xf3eee4, roughness: 1 }));
+  mesh.position.set(0, 3.24, 0);
+  mesh.receiveShadow = true;
+  areaGroup.add(mesh);
+  return mesh;
+}
+function wallSegment(x, z, w, h, d, mat){
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || materials.wallWarm);
+  mesh.position.set(x, h / 2, z);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  areaGroup.add(mesh);
+  addBoxCollider(x, z, w, d);
+  return mesh;
+}
+function addLamp(x,z,intensity,color){
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), new THREE.MeshBasicMaterial({ color: color || 0xffdda6 }));
+  bulb.position.set(x, 2.65, z); areaGroup.add(bulb);
+  const p = new THREE.PointLight(color || 0xffd69a, intensity || 0.9, 11, 2.1);
+  p.position.set(x, 2.5, z); p.castShadow = false; areaGroup.add(p);
+}
+function doorModel(x,z,axis,label,color){
+  const g = new THREE.Group();
+  const frameMat = materials.darkWood;
+  const panelMat = new THREE.MeshStandardMaterial({ color: color || 0xe8dcc2, roughness: 0.95 });
+  const signMat = new THREE.MeshStandardMaterial({ color: 0x1a100d, roughness: 1 });
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.9, 0.05), signMat);
+  const signText = makeLabelPlane(label || '扉', 1.0, 0.3);
+  signText.position.set(0, 0, 0.03);
+  sign.add(signText);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.3, 0.18), frameMat);
+  const right = left.clone();
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.54, 0.12, 0.18), frameMat);
+  left.position.set(-0.73, 1.15, 0); right.position.set(0.73, 1.15, 0); top.position.set(0, 2.24, 0);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.34, 2.08, 0.12), panelMat);
+  panel.position.set(0, 1.04, 0);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 12), materials.brass);
+  knob.position.set(0.52, 1.08, 0.09);
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.34, 0.04), new THREE.MeshStandardMaterial({ color: 0x2d2d31, roughness: 0.5 }));
+  plate.position.set(0.52, 1.08, 0.06);
+  sign.position.set(0, 2.8, 0.03);
+  g.add(left,right,top,panel,plate,knob,sign);
+  if (axis === 'x') g.rotation.y = Math.PI / 2;
+  g.position.set(x,0,z);
+  g.traverse(m => { if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
+  areaGroup.add(g);
+  return g;
+}
+function makeLabelPlane(text, scaleX, scaleY){
+  const c=document.createElement('canvas'); c.width=512; c.height=256; const g=c.getContext('2d');
+  g.fillStyle='#f4f0e2'; g.fillRect(0,0,512,256);
+  g.fillStyle='#140d0c'; g.font='bold 92px sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(text,256,128);
+  const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
+  const mat=new THREE.MeshBasicMaterial({ map:tex, transparent:false });
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(scaleX, scaleY), mat);
+  return mesh;
+}
+
+function receptionDesk(){
+  const g=new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.2, 1.2), materials.darkWood);
+  base.position.set(0,0.6,0); base.castShadow = true; base.receiveShadow = true;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(4.7,0.12,1.35), materials.wood);
+  top.position.set(0,1.26,0); top.castShadow = true; top.receiveShadow = true;
+  g.add(base,top);
+  const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.08,18), materials.brass);
+  bell.position.set(-1.4,1.36,0); g.add(bell);
+  const ledger = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.08,0.6), new THREE.MeshStandardMaterial({ color: 0x27495d, roughness: 0.8 }));
+  ledger.position.set(1.1,1.34,0.05); g.add(ledger);
+  g.position.set(0,0,-3.4); areaGroup.add(g);
+  addBoxCollider(0,-3.4,4.8,1.45);
+}
+function bathCurtain(){
+  const g = new THREE.Group();
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,3,12), materials.brass);
+  rod.rotation.z = Math.PI / 2; rod.position.set(0,2.4,0); g.add(rod);
+  for(let i=0;i<6;i++){
+    const cloth = new THREE.Mesh(new THREE.BoxGeometry(0.42,1.9,0.06), new THREE.MeshStandardMaterial({ color: i%2?0x1e4c8f:0xf4f5f7, roughness: 1 }));
+    cloth.position.set(-1.1 + i*0.44,1.42,0); cloth.castShadow = true; cloth.receiveShadow = true; g.add(cloth);
+  }
+  g.position.set(0,0,-2.7); areaGroup.add(g);
+}
+function archiveShelves(){
+  for(let row=0; row<2; row++){
+    const shelf = new THREE.Group();
+    const side1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.3, 2.8), materials.darkWood);
+    const side2 = side1.clone();
+    const boards=[];
+    for(let i=0;i<4;i++){
+      const board = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.08,2.8), materials.darkWood);
+      board.position.set(0,0.34 + i*0.56,0); boards.push(board); shelf.add(board);
+    }
+    side1.position.set(-1.04,1.15,0); side2.position.set(1.04,1.15,0); shelf.add(side1, side2);
+    for(let i=0;i<18;i++){
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.16 + Math.random()*0.08, 0.34 + Math.random()*0.2, 0.28), new THREE.MeshStandardMaterial({ color: [0x2f4b62,0x755544,0x63613d,0x473a57][i%4], roughness: 0.9 }));
+      b.position.set(-0.82 + (i%9)*0.2, 0.54 + Math.floor(i/9)*0.56, -1 + (i%3)*0.95); shelf.add(b);
+    }
+    shelf.position.set(row===0?-2.6:2.6,0,-0.5); shelf.rotation.y = row===0? 0 : 0; areaGroup.add(shelf);
+    addBoxCollider(shelf.position.x, shelf.position.z, 2.25, 3.0);
+  }
+}
+function makeCharacter(type, costume){
+  const g = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: 0xf1d5c3, roughness: 0.85 });
+  const clothing = new THREE.MeshStandardMaterial({ color: costume || 0x374c7a, roughness: 0.95 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1d24, roughness: 0.95 });
+  const headMats = [skin, skin, skin, skin, new THREE.MeshStandardMaterial({ map: faceTextures[type] }), skin];
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42,0.46,0.42), headMats);
+  head.position.y = 1.72; head.castShadow = true;
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.12,0.16), skin); neck.position.y = 1.46; neck.castShadow = true;
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.58,0.76,0.34), clothing); torso.position.y = 1.04; torso.castShadow = true;
+  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.46,0.22,0.28), clothing); waist.position.y = 0.58; waist.castShadow = true;
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.74,0.18), clothing); armL.position.set(-0.42,1.06,0); armL.castShadow = true;
+  const armR = armL.clone(); armR.position.x = 0.42;
+  const forearmL = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.52,0.16), skin); forearmL.position.set(-0.42,0.56,0.02); forearmL.castShadow = true;
+  const forearmR = forearmL.clone(); forearmR.position.x = 0.42;
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.74,0.2), dark); legL.position.set(-0.14,0.18,0); legL.castShadow = true;
+  const legR = legL.clone(); legR.position.x = 0.14;
+  const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.12,0.36), new THREE.MeshStandardMaterial({ color: 0x0d0f16, roughness: 0.8 })); shoeL.position.set(-0.14,-0.24,0.04); shoeL.castShadow = true;
+  const shoeR = shoeL.clone(); shoeR.position.x = 0.14;
+  g.add(head, neck, torso, waist, armL, armR, forearmL, forearmR, legL, legR, shoeL, shoeR);
+  if (type === 'okami') {
+    const kimono = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.1,0.42), new THREE.MeshStandardMaterial({ color: 0x6c3d43, roughness: 0.95 }));
+    kimono.position.y = 0.78; kimono.castShadow = true; g.add(kimono);
+  }
+  if (type === 'guide') {
+    const helmet = new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.22,0.22,20), new THREE.MeshStandardMaterial({ color: 0xf5f6f7, roughness: 0.45 }));
+    helmet.position.y = 2.0; helmet.castShadow = true; g.add(helmet);
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.34,0.02), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    panel.position.set(0.44,1.1,0.18); g.add(panel);
+    const panel2 = panel.clone(); panel2.position.x = -0.44; panel2.material = new THREE.MeshStandardMaterial({ color: 0xc23b3b }); g.add(panel2);
+  }
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.48, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = -0.29; g.add(shadow);
+  return g;
+}
+
+function addNPC(id, name, faceType, costume, x, z, rot, onInteract){
+  const npc = { id, name, x, z, rot: rot || 0, onInteract, faceType };
+  npc.group = makeCharacter(faceType, costume);
+  npc.group.position.set(x, 0.28, z);
+  npc.group.rotation.y = rot || 0;
+  dynamicGroup.add(npc.group);
+  npcs.push(npc);
+  return npc;
+}
+function addItem(id, label, x, z, mesh, onInteract){
+  mesh.position.set(x, mesh.position.y, z);
+  dynamicGroup.add(mesh);
+  items.push({ id, label, x, z, mesh, onInteract });
+}
+function addDoor(id, label, x, z, radius, toArea, toSpawn, axis, color){
+  doorModel(x, z, axis, label, color);
+  doors.push({ id, label, x, z, radius: radius || 1.18, toArea, toSpawn });
+}
+
+function buildArea(areaId){
+  areaGroup.clear(); dynamicGroup.clear(); clearArray(colliders); clearArray(doors); clearArray(npcs); clearArray(items);
+  areaLabelEl.textContent = areaLabels[areaId];
+  phaseLabelEl.textContent = stepDefs[state.step].phase;
+  dayLabelEl.textContent = 'DAY ' + stepDefs[state.step].day;
+  state.day = stepDefs[state.step].day;
+  state.phaseLabel = stepDefs[state.step].phase;
+  scene.fog.color.set(0x080a10);
+  scene.fog.near = 16; scene.fog.far = 42;
+  if (areaId === 'lobby') buildLobby();
+  else if (areaId === 'kitchen') buildKitchen();
+  else if (areaId === 'corridor') buildCorridor();
+  else if (areaId === 'room201') buildRoom201();
+  else if (areaId === 'bath') buildBath();
+  else if (areaId === 'archive') buildArchive();
+  else if (areaId === 'north') buildNorth();
+  else if (areaId === 'detached') buildDetached();
+}
+
+function buildLobby(){
+  createFloor(14, 12, materials.tatami, -0.1);
+  createCeiling(14, 12, 0xf0eadc);
+  wallSegment(0, -5.95, 14, 3.2, 0.14, materials.wallWarm);
+  wallSegment(0, 5.95, 14, 3.2, 0.14, materials.wallWarm);
+  wallSegment(-6.95, 0, 0.14, 3.2, 12, materials.darkWood);
+  wallSegment(6.95, 0, 0.14, 3.2, 12, materials.darkWood);
+  receptionDesk();
+  addLamp(-2.4, -0.4, 0.85); addLamp(2.4, -0.4, 0.85);
+  const sign = makeLabelPlane('帳場', 1.4, 0.45); sign.position.set(0, 2.5, -5.85); areaGroup.add(sign);
+  const cabinet = new THREE.Mesh(new THREE.BoxGeometry(1.3,1.8,0.6), materials.darkWood);
+  cabinet.position.set(-5.2,0.9,3.4); cabinet.castShadow = cabinet.receiveShadow = true; areaGroup.add(cabinet); addBoxCollider(-5.2,3.4,1.3,0.6);
+  const blackPhone = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.14,0.28), materials.black);
+  blackPhone.position.set(2.2,1.36,-3.45); areaGroup.add(blackPhone);
+  addDoor('lobbyToCorridor', '客室廊下', 6.32, 0, 1.35, 'corridor', { x: -5.3, z: 0, yaw: 0 });
+  addDoor('lobbyToKitchen', '厨房', -6.32, 2.2, 1.2, 'kitchen', { x: 4.2, z: -1.2, yaw: Math.PI });
+  addDoor('lobbyToArchive', '宿帳庫', -6.32, -2.2, 1.2, 'archive', { x: 4.2, z: 0, yaw: Math.PI });
+  addNPC('okami', '女将', 'okami', 0x6d3d44, 0, -2.1, Math.PI, npcInteract);
+}
+
+function buildKitchen(){
+  createFloor(11, 9, materials.tile, -0.1);
+  createCeiling(11, 9, 0xece7dd);
+  wallSegment(0,-4.45,11,3.2,0.14,materials.wallDark); wallSegment(0,4.45,11,3.2,0.14,materials.wallDark); wallSegment(-5.45,0,0.14,3.2,9,materials.wallDark); wallSegment(5.45,0,0.14,3.2,9,materials.wallDark);
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(3.8,0.92,1.3), materials.darkWood); counter.position.set(0,0.46,-2.3); counter.castShadow = counter.receiveShadow = true; areaGroup.add(counter); addBoxCollider(0,-2.3,3.8,1.3);
+  const stove = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.92,0.8), new THREE.MeshStandardMaterial({ color: 0x54565d, roughness: 0.5 })); stove.position.set(-3.7,0.46,2.5); areaGroup.add(stove); addBoxCollider(-3.7,2.5,1.6,0.8);
+  addLamp(0,0,0.9); addLamp(3.2,-1.4,0.7);
+  addDoor('kitchenToLobby','帳場',5.0,-1.2,1.2,'lobby',{x:-4.8,z:2.2,yaw:0},'x');
+  addNPC('chef','料理番','chef',0xffffff,1.8,-1.2,-Math.PI/2,npcInteract);
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(0.86,0.08,0.56), new THREE.MeshStandardMaterial({ color: 0x7a4e2f, roughness: 0.85 }));
+  tray.position.y = 0.94;
+  const teapot = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,0.18,18), new THREE.MeshStandardMaterial({ color: 0xdfddd7, roughness: 0.55 }));
+  teapot.position.set(0.1,0.12,0); tray.add(teapot);
+  const cup1 = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.08,18), materials.paper); cup1.position.set(-0.18,0.08,-0.1); tray.add(cup1);
+  const cup2 = cup1.clone(); cup2.position.z = 0.1; tray.add(cup2);
+  addItem('tray','お茶の盆',0.2,-2.25,tray,itemInteract);
+}
+
+function buildCorridor(){
+  createFloor(20, 7, materials.wood, -0.1);
+  createCeiling(20, 7, 0xe7dcc9);
+  wallSegment(0,-3.45,20,3.2,0.14,materials.darkWood); wallSegment(0,3.45,20,3.2,0.14,materials.darkWood); wallSegment(-9.95,0,0.14,3.2,7,materials.wallDark); wallSegment(9.95,0,0.14,3.2,7,materials.wallDark);
+  for(let i=-8;i<=8;i+=4){ addLamp(i,0,0.68,0xffd7a6); }
+  for(let z of [-2.4,2.4]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(19.6,0.9,0.18), materials.darkWood); rail.position.set(0,0.45,z); rail.castShadow = rail.receiveShadow = true; areaGroup.add(rail); addBoxCollider(0,z,19.6,0.18);
+  }
+  addDoor('corridorToLobby','帳場',-9.34,0,1.2,'lobby',{x:5.2,z:0,yaw:Math.PI},'x');
+  addDoor('corridorTo201','201',0,-3.28,1.2,'room201',{x:0,z:2.8,yaw:Math.PI},null,0xf0e7d1);
+  addDoor('corridorToBath','浴場',6.2,3.28,1.2,'bath',{x:-4.2,z:0,yaw:0},null,0xd7ecef);
+  addDoor('corridorToNorth','北廊下',9.34,0,1.2,'north',{x:-4.8,z:0,yaw:0},'x',0xc3b28a);
+  const placard = makeLabelPlane('客室廊下', 1.8, 0.45); placard.position.set(-6.5,2.4,-3.3); areaGroup.add(placard);
+  addNPC('maid','仲居','maid',0x575a79,3.6,0.9,Math.PI,npcInteract);
+}
+
+function buildRoom201(){
+  createFloor(9, 9, materials.tatami, -0.1);
+  createCeiling(9, 9, 0xf2ece1);
+  wallSegment(0,-4.45,9,3.2,0.14,materials.wallWarm); wallSegment(0,4.45,9,3.2,0.14,materials.wallWarm); wallSegment(-4.45,0,0.14,3.2,9,materials.wallDark); wallSegment(4.45,0,0.14,3.2,9,materials.wallDark);
+  const alcove = new THREE.Mesh(new THREE.BoxGeometry(1.6,2.5,0.4), materials.darkWood); alcove.position.set(-3.2,1.25,-3.6); areaGroup.add(alcove); addBoxCollider(-3.2,-3.6,1.6,0.4);
+  const futon = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.26,3.0), new THREE.MeshStandardMaterial({ color: 0xf1efe8, roughness: 1 })); futon.position.set(1.7,0.03,-1.2); areaGroup.add(futon); addBoxCollider(1.7,-1.2,2.2,3.0);
+  const table = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.38,1.2), materials.darkWood); table.position.set(-0.2,0.19,0.8); areaGroup.add(table); addBoxCollider(-0.2,0.8,1.2,1.2);
+  addLamp(0,0,0.8); addDoor('room201ToCorridor','客室廊下',0,4.18,1.1,'corridor',{x:0,z:-1.8,yaw:0},null,0xf0e7d1);
+  addNPC('guest201','201号室の客','guest',0x423d52,-1.6,-1.2,Math.PI/2,npcInteract);
+}
+
+function buildBath(){
+  createFloor(10, 8, materials.tile, -0.1);
+  createCeiling(10, 8, 0xe9ecef);
+  wallSegment(0,-3.95,10,3.2,0.14,materials.wallRose); wallSegment(0,3.95,10,3.2,0.14,materials.wallRose); wallSegment(-4.95,0,0.14,3.2,8,materials.wallRose); wallSegment(4.95,0,0.14,3.2,8,materials.wallRose);
+  bathCurtain();
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.42,0.6), materials.darkWood); bench.position.set(2.2,0.21,2.8); areaGroup.add(bench); addBoxCollider(2.2,2.8,2.2,0.6);
+  addLamp(-2.3,0,0.7,0xffe6bc); addLamp(2.3,0,0.7,0xffe6bc);
+  addDoor('bathToCorridor','客室廊下',-4.35,0,1.2,'corridor',{x:6.2,z:1.8,yaw:Math.PI},'x',0xddeff3);
+  const phoneTable = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.52,0.58), materials.darkWood); phoneTable.position.set(2.5,0.26,-2.5); areaGroup.add(phoneTable); addBoxCollider(2.5,-2.5,0.9,0.58);
+  const phone = new THREE.Mesh(new THREE.BoxGeometry(0.46,0.14,0.32), materials.black); phone.position.set(2.5,0.61,-2.5); areaGroup.add(phone);
+  addItem('phone','黒電話',2.5,-2.5, phone, itemInteract);
+}
+
+function buildArchive(){
+  createFloor(12, 10, materials.tile, -0.1);
+  createCeiling(12, 10, 0xdad8d6);
+  wallSegment(0,-4.95,12,3.2,0.14,materials.wallDark); wallSegment(0,4.95,12,3.2,0.14,materials.wallDark); wallSegment(-5.95,0,0.14,3.2,10,materials.wallDark); wallSegment(5.95,0,0.14,3.2,10,materials.wallDark);
+  archiveShelves();
+  addLamp(-2.6,0,0.6,0xffe0b4); addLamp(2.6,0,0.6,0xffe0b4);
+  addDoor('archiveToLobby','帳場',5.35,0,1.15,'lobby',{x:-4.9,z:-2.2,yaw:0},'x',0xb7b39b);
+  addDoor('archiveToDetached','離れ通路',0,-4.35,1.15,'detached',{x:0,z:3.6,yaw:Math.PI},null,0x9689a6);
+  const ledger = new THREE.Mesh(new THREE.BoxGeometry(0.72,0.16,0.48), new THREE.MeshStandardMaterial({ color: 0x225688, roughness: 0.85 }));
+  ledger.position.y = 1.16;
+  addItem('blueLedger','青い宿帳',0,1.1, ledger, itemInteract);
+}
+
+function buildNorth(){
+  createFloor(11, 7, materials.carpet, -0.1);
+  createCeiling(11, 7, 0xd7cab5);
+  wallSegment(0,-3.45,11,3.2,0.14,materials.wallDark); wallSegment(0,3.45,11,3.2,0.14,materials.wallDark); wallSegment(-5.45,0,0.14,3.2,7,materials.wallDark); wallSegment(5.45,0,0.14,3.2,7,materials.wallDark);
+  addLamp(-2,0,0.45,0xffc388); addLamp(2.4,0,0.45,0xffc388);
+  addDoor('northToCorridor','客室廊下',-4.85,0,1.1,'corridor',{x:8.1,z:0,yaw:Math.PI},'x',0xbda67e);
+  addDoor('northToDetached','離れ通路',4.85,0,1.1,'detached',{x:-3.8,z:0,yaw:0},'x',0xa89676);
+  const rope = new THREE.Mesh(new THREE.BoxGeometry(2.4,0.06,0.06), new THREE.MeshStandardMaterial({ color: 0x8f5c3d, roughness: 1 })); rope.position.set(0,1.4,-1.8); rope.rotation.z = 0.25; areaGroup.add(rope);
+  const seal = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.36,0.02), new THREE.MeshStandardMaterial({ color: 0xf7f1df, roughness: 1 })); seal.position.set(0,1.15,-1.78); areaGroup.add(seal);
+  addItem('sealTag','閉ざされた札',0,-1.8, seal, itemInteract);
+}
+
+function buildDetached(){
+  createFloor(14, 8, materials.wood, -0.1);
+  createCeiling(14, 8, 0x1d2235);
+  scene.fog.color.set(0x0c1019); scene.fog.near = 10; scene.fog.far = 28;
+  wallSegment(0,-3.95,14,3.2,0.14,materials.wallDark); wallSegment(0,3.95,14,3.2,0.14,materials.wallDark); wallSegment(-6.95,0,0.14,3.2,8,materials.wallDark); wallSegment(6.95,0,0.14,3.2,8,materials.wallDark);
+  for(let i=-5;i<=5;i+=5) addLamp(i,0,0.32,0x6e88aa);
+  addDoor('detachedToNorth','北廊下',-6.35,0,1.15,'north',{x:4.0,z:0,yaw:Math.PI},'x',0xa89676);
+  addDoor('detachedToArchive','宿帳庫',0,3.35,1.15,'archive',{x:0,z:-3.2,yaw:0},null,0x9689a6);
+  const shrine = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.44,0.8), materials.darkWood); base.position.y = 0.22; shrine.add(base);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.84,1.0,0.44), materials.darkWood); body.position.y = 0.92; shrine.add(body);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.3,0.16,0.8), materials.wood); roof.position.y = 1.48; shrine.add(roof);
+  shrine.position.set(0,0,-2.6); shrine.traverse(m => { if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; }}); areaGroup.add(shrine); addBoxCollider(0,-2.6,1.3,0.8);
+  addItem('altar','祠',0,-2.6, shrine, itemInteract);
+}
+
+function npcInteract(entity){
+  if (entity.id === 'okami') {
+    if (state.step === 'talk_okami') {
+      showDialogue(storyNodes.okami_intro, () => setStep('get_tray'));
+    } else if (state.step === 'report_okami') {
+      showDialogue(storyNodes.report_okami, () => setStep('answer_phone'));
+    } else if (state.step === 'escape_archive') {
+      showDialogue(storyNodes.escape_archive, () => setStep('talk_maid'));
+    } else if (state.step === 'escape_detached') {
+      showDialogue(storyNodes.finale, () => { setStep('finale'); state.ended = true; endingEl.classList.remove('hidden'); saveGame(); });
+    } else if (state.step === 'finale') {
+      showDialogue(storyNodes.finale, () => { endingEl.classList.remove('hidden'); saveGame(); });
+    }
+  } else if (entity.id === 'guest201' && state.step === 'deliver_201') {
+    showDialogue(storyNodes.guest201, () => setStep('report_okami'));
+  } else if (entity.id === 'maid' && state.step === 'talk_maid') {
+    showDialogue(storyNodes.maid, () => setStep('inspect_north'));
+  } else if (entity.id === 'chef' && state.step === 'get_tray') {
+    showDialogue(storyNodes.tray, ()=>{});
+  }
+}
+
+function itemInteract(entity){
+  if (entity.id === 'tray' && state.step === 'get_tray') {
+    dynamicGroup.remove(entity.mesh);
+    removeItem(entity.id);
+    state.questFlags.hasTray = true;
+    showDialogue(storyNodes.tray, () => setStep('deliver_201'));
+  } else if (entity.id === 'phone' && state.step === 'answer_phone') {
+    showDialogue(storyNodes.phone, () => setStep('inspect_archive'));
+  } else if (entity.id === 'blueLedger' && state.step === 'inspect_archive') {
+    dynamicGroup.remove(entity.mesh);
+    removeItem(entity.id);
+    state.questFlags.hasLedger = true;
+    showDialogue(storyNodes.blueLedger, () => {
+      startChase('archive', { x: 0, z: 0 }, 'escape_archive');
+      setStep('escape_archive');
+    });
+  } else if (entity.id === 'sealTag' && state.step === 'inspect_north') {
+    showDialogue(storyNodes.sealTag, () => setStep('inspect_detached'));
+  } else if (entity.id === 'altar' && state.step === 'inspect_detached') {
+    showDialogue(storyNodes.altar, () => {
+      startChase('detached', { x: 0, z: 0 }, 'escape_detached');
+      setStep('escape_detached');
+    });
+  }
+}
+
+function removeItem(id){
+  const idx = items.findIndex(it => it.id === id);
+  if (idx >= 0) items.splice(idx,1);
+}
+
+function showDialogue(list, done){
+  state.menuOpen = true;
+  state.dialogueQueue = list.map(row => ({ name: row[0], text: row[1], face: row[2] }));
+  dialogueOverlay.classList.remove('hidden');
+  dialogueOverlay.dataset.done = done ? '1' : '';
+  dialogueOverlay._done = done || null;
+  advanceDialogue();
+}
+function advanceDialogue(){
+  if (!state.dialogueQueue.length) {
+    dialogueOverlay.classList.add('hidden');
+    state.menuOpen = false;
+    const done = dialogueOverlay._done;
+    dialogueOverlay._done = null;
+    if (done) done();
+    return;
+  }
+  const row = state.dialogueQueue.shift();
+  dialogueNameEl.textContent = row.name;
+  dialogueTextEl.textContent = row.text;
+  portraitEl.innerHTML = '';
+  portraitEl.appendChild(makePortrait(row.face || 'hero'));
+}
+function makePortrait(face){
+  const wrap = document.createElement('div');
+  wrap.style.width = '100%'; wrap.style.height = '100%'; wrap.style.display = 'grid'; wrap.style.placeItems = 'center';
+  const card = document.createElement('div');
+  card.style.width = '82%'; card.style.aspectRatio = '0.68'; card.style.borderRadius = '18px';
+  card.style.background = `linear-gradient(180deg, rgba(255,255,255,.14), rgba(0,0,0,.16)), url(${faceTextures[face].image.toDataURL()}) center/cover no-repeat`;
+  card.style.border = '1px solid rgba(255,255,255,.12)';
+  wrap.appendChild(card);
+  return wrap;
+}
+dialogueOverlay.addEventListener('pointerdown', advanceDialogue);
+dialogueOverlay.addEventListener('touchstart', function(e){ e.preventDefault(); advanceDialogue(); }, { passive:false });
+
+function currentStep(){ return stepDefs[state.step]; }
+function setStep(id){
+  state.step = id;
+  const def = currentStep();
+  dayLabelEl.textContent = 'DAY ' + def.day;
+  phaseLabelEl.textContent = def.phase;
+  objectiveTextEl.textContent = def.text;
+  objectiveSubEl.textContent = def.sub;
+  saveGame();
+}
+
+function startChase(areaId, guidePos, linkedStep){
+  state.checkpoint = { area: areaId, x: player.x, z: player.z, yaw: player.yaw, step: linkedStep };
+  state.chase = { active: true, speed: 2.55 };
+  spawnGuide(guidePos.x, guidePos.z);
+}
+function stopChase(){
+  state.chase = null;
+  if (state.guide) { dynamicGroup.remove(state.guide.group); state.guide = null; }
+}
+function spawnGuide(x,z){
+  if (state.guide) dynamicGroup.remove(state.guide.group);
+  const group = makeCharacter('guide', 0x2f4d7d);
+  group.position.set(x,0.28,z);
+  dynamicGroup.add(group);
+  state.guide = { group, x, z, yaw: 0 };
+}
+function triggerGameOver(){
+  state.menuOpen = true;
+  gameOverEl.classList.remove('hidden');
+}
+function retryFromCheckpoint(){
+  gameOverEl.classList.add('hidden');
+  state.menuOpen = false;
+  if (!state.checkpoint) return;
+  setStep(state.checkpoint.step);
+  state.area = state.checkpoint.area;
+  buildArea(state.area);
+  player.x = state.checkpoint.x;
+  player.z = state.checkpoint.z;
+  player.yaw = state.checkpoint.yaw;
+  player.pitch = 0;
+  stopChase();
+  if (state.step === 'escape_archive') startChase('archive', {x:0,z:0}, 'escape_archive');
+  if (state.step === 'escape_detached') startChase('detached', {x:0,z:0}, 'escape_detached');
+}
+
+function interact(){
+  if (state.menuOpen) return;
+  if (!dialogueOverlay.classList.contains('hidden')) return;
+  const target = getNearestInteractable();
+  if (!target) return;
+  if (target.type === 'door') {
+    useDoor(target.entity);
+  } else if (target.type === 'npc') {
+    target.entity.onInteract(target.entity);
+  } else if (target.type === 'item') {
+    target.entity.onInteract(target.entity);
+  }
+}
+
+function getNearestInteractable(){
+  let best = null; let bestDist = 999;
+  const facing = { x: Math.sin(player.yaw), z: Math.cos(player.yaw) };
+  const all = [];
+  doors.forEach(d => all.push({ type: 'door', entity: d, x: d.x, z: d.z, label: d.label }));
+  npcs.forEach(n => all.push({ type: 'npc', entity: n, x: n.x, z: n.z, label: n.name }));
+  items.forEach(i => all.push({ type: 'item', entity: i, x: i.x, z: i.z, label: i.label }));
+  for (const obj of all) {
+    const dx = obj.x - player.x, dz = obj.z - player.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 2.3) continue;
+    const dir = dist > 0.001 ? ((dx * facing.x + dz * facing.z) / dist) : 1;
+    if (dir < 0.25) continue;
+    if (dist < bestDist) { bestDist = dist; best = obj; }
+  }
+  return best;
+}
+function useDoor(door){
+  const now = performance.now();
+  if (now < state.doorCooldownUntil) return;
+  if (state.lastDoorId === door.id) return;
+  state.lastDoorId = door.id;
+  state.doorCooldownUntil = now + 900;
+  input.joyX = 0; input.joyY = 0; centerJoystick();
+  state.area = door.toArea;
+  buildArea(state.area);
+  player.x = door.toSpawn.x;
+  player.z = door.toSpawn.z;
+  player.yaw = door.toSpawn.yaw || 0;
+  player.pitch = 0;
+  if (state.chase && state.area === 'lobby') {
+    stopChase();
+    if (state.step === 'escape_archive') setStep('talk_maid');
+    else if (state.step === 'escape_detached') setStep('finale');
+  }
+}
+
+function updatePrompt(){
+  const obj = getNearestInteractable();
+  if (!obj || state.menuOpen || !dialogueOverlay.classList.contains('hidden')) {
+    promptEl.classList.remove('show');
+    return;
+  }
+  const kind = obj.type === 'door' ? '移動' : (obj.type === 'npc' ? '話す' : '調べる');
+  promptEl.textContent = 'E / ACT : ' + obj.label + ' / ' + kind;
+  promptEl.classList.add('show');
+}
+
+function updateObjectiveDistance(){
+  const def = currentStep();
+  objectiveTextEl.textContent = def.text;
+  objectiveSubEl.textContent = def.sub;
+  const approx = calculateDistanceToObjective();
+  distanceLabelEl.textContent = areaLabels[def.targetArea] + ' 約' + Math.max(1, Math.round(approx)) + 'm';
+}
+function calculateDistanceToObjective(){
+  const def = currentStep();
+  if (state.area === def.targetArea) return Math.hypot(player.x - def.targetPos.x, player.z - def.targetPos.z);
+  const route = shortestAreaDistance(state.area, def.targetArea);
+  return route + 6;
+}
+function shortestAreaDistance(from, to){
+  if (from === to) return 0;
+  const dist = {}; const done = {};
+  Object.keys(graph).forEach(k => dist[k] = Infinity);
+  dist[from] = 0;
+  while (true) {
+    let current = null, currentDist = Infinity;
+    Object.keys(dist).forEach(k => { if (!done[k] && dist[k] < currentDist) { current = k; currentDist = dist[k]; } });
+    if (!current) break;
+    if (current === to) break;
+    done[current] = true;
+    const edges = graph[current] || {};
+    Object.keys(edges).forEach(next => { dist[next] = Math.min(dist[next], dist[current] + edges[next]); });
+  }
+  return dist[to] === Infinity ? 99 : dist[to];
+}
+
+function updateMinimap(){
+  minimapCtx.clearRect(0,0,minimap.width,minimap.height);
+  minimapCtx.fillStyle = 'rgba(8,10,18,.86)';
+  roundRect(minimapCtx, 0,0,minimap.width,minimap.height,22); minimapCtx.fill();
+  minimapCtx.fillStyle = '#a79b84'; minimapCtx.font = '12px sans-serif'; minimapCtx.fillText('館内導線', 14, 18);
+  const nodes = {
+    lobby:[40,50], kitchen:[40,88], corridor:[105,50], room201:[164,28], bath:[200,28], archive:[105,88], north:[164,88], detached:[200,88]
+  };
+  minimapCtx.strokeStyle='rgba(255,255,255,.14)'; minimapCtx.lineWidth=2;
+  Object.keys(graph).forEach(k=>{ Object.keys(graph[k]).forEach(to=>{ if(k<to){ const a=nodes[k], b=nodes[to]; minimapCtx.beginPath(); minimapCtx.moveTo(a[0],a[1]); minimapCtx.lineTo(b[0],b[1]); minimapCtx.stroke(); } }); });
+  Object.keys(nodes).forEach(k=>{
+    const [x,y]=nodes[k];
+    minimapCtx.fillStyle = k===state.area ? '#d4bb7a' : (k===currentStep().targetArea ? '#91aaf3' : '#2b3348');
+    roundRect(minimapCtx, x-28, y-12, 56, 24, 6); minimapCtx.fill();
+    minimapCtx.fillStyle = '#f1ede5'; minimapCtx.font = '11px sans-serif'; minimapCtx.textAlign='center'; minimapCtx.textBaseline='middle';
+    minimapCtx.fillText(areaLabels[k], x, y);
+  });
+  minimapCtx.textAlign='start'; minimapCtx.textBaseline='alphabetic';
+}
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function setCamera(){
+  camera.position.set(player.x, player.height, player.z);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+}
+
+function movePlayer(dt){
+  if (state.menuOpen || !dialogueOverlay.classList.contains('hidden')) return;
+  const moveX = input.joyX + ((input.keys.KeyD?1:0) - (input.keys.KeyA?1:0));
+  const moveY = input.joyY + ((input.keys.KeyW?1:0) - (input.keys.KeyS?1:0));
+  const len = Math.hypot(moveX, moveY);
+  if (len < 0.01) return;
+  const nx = moveX / Math.max(1, len);
+  const nz = moveY / Math.max(1, len);
+  const speed = player.speed * (input.keys.ShiftLeft ? player.run : 1) * dt;
+  const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
+  const dx = (sin * nz + cos * nx) * speed;
+  const dz = (cos * nz - sin * nx) * speed;
+  attemptMove(player.x + dx, player.z + dz);
+}
+function attemptMove(nx, nz){
+  const r = player.radius;
+  for (const c of colliders) {
+    if (nx + r > c.x1 && nx - r < c.x2 && nz + r > c.z1 && nz - r < c.z2) {
+      // try slide X only
+      const clearX = !(nx + r > c.x1 && nx - r < c.x2 && player.z + r > c.z1 && player.z - r < c.z2);
+      const clearZ = !(player.x + r > c.x1 && player.x - r < c.x2 && nz + r > c.z1 && nz - r < c.z2);
+      if (clearX) { player.x = nx; return; }
+      if (clearZ) { player.z = nz; return; }
+      return;
+    }
+  }
+  player.x = nx; player.z = nz;
+}
+
+function updateChase(dt){
+  if (!state.chase || !state.guide || state.menuOpen || !dialogueOverlay.classList.contains('hidden')) return;
+  const gx = state.guide.group.position.x, gz = state.guide.group.position.z;
+  const dx = player.x - gx, dz = player.z - gz;
+  const dist = Math.hypot(dx,dz);
+  if (dist < 0.86) {
+    triggerGameOver();
+    return;
+  }
+  const move = Math.min(state.chase.speed * dt, dist * 0.92);
+  state.guide.group.position.x += (dx / Math.max(.001, dist)) * move;
+  state.guide.group.position.z += (dz / Math.max(.001, dist)) * move;
+  state.guide.group.rotation.y = Math.atan2(dx, dz);
+}
+
+function updateDoorLatch(){
+  if (!state.lastDoorId) return;
+  const door = doors.find(d => d.id === state.lastDoorId);
+  if (!door) { state.lastDoorId = null; return; }
+  const dist = Math.hypot(player.x - door.x, player.z - door.z);
+  if (dist > door.radius + 1.2 && performance.now() > state.doorCooldownUntil) state.lastDoorId = null;
+}
+
+function update(){
+  updateDoorLatch();
+  updatePrompt();
+  updateObjectiveDistance();
+  updateMinimap();
+  if (state.hudHidden) {
+    hud.style.display = 'none';
+    joystickZone.style.display = 'none';
+    actBtn.style.display = 'none';
+    lookZone.style.display = 'none';
+  } else {
+    hud.style.display = '';
+    joystickZone.style.display = '';
+    actBtn.style.display = '';
+    lookZone.style.display = '';
+  }
+}
+
+let lastTime = performance.now();
+function animate(now){
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  movePlayer(dt);
+  updateChase(dt);
+  setCamera();
+  update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+function saveGame(){
+  const data = {
+    area: state.area,
+    step: state.step,
+    x: player.x,
+    z: player.z,
+    yaw: player.yaw,
+    pitch: player.pitch,
+    hudHidden: state.hudHidden,
+    questFlags: state.questFlags,
+    ended: state.ended,
+    checkpoint: state.checkpoint
+  };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+}
+function loadGame(){
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return false;
+  try {
+    const data = JSON.parse(raw);
+    state.area = data.area || 'lobby';
+    state.step = data.step || 'talk_okami';
+    state.hudHidden = !!data.hudHidden;
+    state.questFlags = data.questFlags || {};
+    state.ended = !!data.ended;
+    state.checkpoint = data.checkpoint || null;
+    buildArea(state.area);
+    player.x = typeof data.x === 'number' ? data.x : 0;
+    player.z = typeof data.z === 'number' ? data.z : 0;
+    player.yaw = typeof data.yaw === 'number' ? data.yaw : 0;
+    player.pitch = typeof data.pitch === 'number' ? data.pitch : 0;
+    if (state.step === 'escape_archive') startChase('archive',{x:0,z:0},'escape_archive');
+    if (state.step === 'escape_detached') startChase('detached',{x:0,z:0},'escape_detached');
+    if (state.ended) endingEl.classList.remove('hidden');
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+}
+
+function resetInput(){
+  input.joyX = 0; input.joyY = 0; input.keys = Object.create(null); centerJoystick();
+}
+
+function setupControls(){
+  window.addEventListener('resize', onResize);
+  document.addEventListener('keydown', function(e){
+    if (e.code === 'KeyE') { interact(); e.preventDefault(); return; }
+    if (e.code === 'Escape') { toggleMenu(); e.preventDefault(); return; }
+    input.keys[e.code] = true;
+  });
+  document.addEventListener('keyup', function(e){ input.keys[e.code] = false; });
+  actBtn.addEventListener('click', interact);
+  actBtn.addEventListener('touchstart', function(e){ e.preventDefault(); interact(); }, { passive:false });
+  menuBtn.addEventListener('click', toggleMenu);
+  menuOverlay.addEventListener('click', function(e){
+    const btn = e.target.closest('button'); if (!btn) return;
+    const act = btn.dataset.action;
+    if (act === 'close') toggleMenu(false);
+    else if (act === 'save') { saveGame(); toggleMenu(false); }
+    else if (act === 'load') { loadGame(); toggleMenu(false); }
+    else if (act === 'hud') { state.hudHidden = !state.hudHidden; toggleMenu(false); saveGame(); }
+    else if (act === 'title') { location.href = 'index.html'; }
+  });
+  gameOverEl.addEventListener('click', function(e){
+    const btn = e.target.closest('button'); if (!btn) return;
+    if (btn.dataset.go === 'retry') { gameOverEl.classList.add('hidden'); retryFromCheckpoint(); }
+    else location.href = 'index.html';
+  });
+  endingEl.addEventListener('click', function(e){ if (e.target.closest('button')) location.href = 'index.html'; });
+
+  joystickZone.addEventListener('pointerdown', startJoy);
+  window.addEventListener('pointermove', moveJoy);
+  window.addEventListener('pointerup', endJoy);
+  lookZone.addEventListener('pointerdown', startLook);
+  canvas.addEventListener('pointerdown', function(e){
+    if (state.menuOpen) return;
+    if (e.clientX > window.innerWidth * 0.38) {
+      input.lookId = e.pointerId;
+      input.lookDragging = true;
+      input.pointerX = e.clientX;
+      input.pointerY = e.clientY;
+      canvas.setPointerCapture?.(e.pointerId);
+    }
+  });
+  window.addEventListener('pointermove', moveLook);
+  window.addEventListener('pointerup', endLook);
+  canvas.addEventListener('mousedown', function(e){ if (e.clientX > window.innerWidth * .38) { input.mouseDrag = true; input.pointerX = e.clientX; input.pointerY = e.clientY; } });
+  window.addEventListener('mousemove', function(e){ if (!input.mouseDrag || state.menuOpen) return; const dx = e.clientX - input.pointerX; const dy = e.clientY - input.pointerY; input.pointerX = e.clientX; input.pointerY = e.clientY; rotateLook(dx,dy); });
+  window.addEventListener('mouseup', function(){ input.mouseDrag = false; });
+  document.addEventListener('gesturestart', preventer, {passive:false});
+  document.addEventListener('dblclick', preventer, {passive:false});
+}
+function preventer(e){ e.preventDefault(); }
+function startJoy(e){ if(state.menuOpen) return; input.joyId = e.pointerId; updateJoy(e); joystickZone.setPointerCapture?.(e.pointerId); }
+function moveJoy(e){ if(e.pointerId !== input.joyId) return; updateJoy(e); }
+function endJoy(e){ if(e.pointerId !== input.joyId) return; input.joyId = null; input.joyX = 0; input.joyY = 0; centerJoystick(); }
+function updateJoy(e){
+  const rect = joystickBase.getBoundingClientRect();
+  const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+  const dx = e.clientX - cx, dy = e.clientY - cy;
+  const max = rect.width * 0.3; const len = Math.hypot(dx,dy); const clamped = Math.min(max, len || 0.001);
+  const nx = dx / (len || 1), ny = dy / (len || 1);
+  const x = nx * clamped, y = ny * clamped;
+  joystickKnob.style.transform = `translate(${x}px, ${y}px)`;
+  input.joyX = x / max;
+  input.joyY = -(y / max);
+}
+function centerJoystick(){ joystickKnob.style.transform = 'translate(0px, 0px)'; }
+function startLook(e){ if(state.menuOpen) return; input.lookId = e.pointerId; input.lookDragging = true; input.pointerX = e.clientX; input.pointerY = e.clientY; lookZone.setPointerCapture?.(e.pointerId); }
+function moveLook(e){ if(!input.lookDragging || e.pointerId !== input.lookId || state.menuOpen) return; const dx = e.clientX - input.pointerX; const dy = e.clientY - input.pointerY; input.pointerX = e.clientX; input.pointerY = e.clientY; rotateLook(dx,dy); }
+function endLook(e){ if(e.pointerId !== input.lookId) return; input.lookDragging = false; input.lookId = null; }
+function rotateLook(dx,dy){ player.yaw -= dx * 0.0052; player.pitch -= dy * 0.0042; player.pitch = Math.max(-1.05, Math.min(1.05, player.pitch)); }
+function toggleMenu(force){
+  const open = typeof force === 'boolean' ? force : !state.menuOpen;
+  state.menuOpen = open;
+  menuOverlay.classList.toggle('hidden', !open);
+  if (open) resetInput();
+}
+function onResize(){ renderer.setSize(window.innerWidth, window.innerHeight, false); camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); }
+
+function init(){
+  setupControls();
+  const ok = loadGame();
+  if (!ok) {
+    buildArea(state.area);
+    player.x = 0; player.z = 2.8; player.yaw = Math.PI;
+    setStep('talk_okami');
+  }
+  requestAnimationFrame(animate);
+}
+
+init();
+
 })();

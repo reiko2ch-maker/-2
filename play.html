@@ -1,88 +1,81 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no" />
-  <title>宵宿 PLAY v18 3D Fix Test</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>宵宿 A-1 Real3D Test</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body class="play-body">
-  <canvas id="gameCanvas"></canvas>
+  <div id="game-root">
+    <canvas id="game-canvas"></canvas>
+    <div class="crt"></div>
 
-  <div id="hud" class="hud-wrap">
-    <div class="hud-row left">
-      <div id="dayLabel" class="hud-chip">DAY 1</div>
-      <div id="phaseLabel" class="hud-chip accent">昼勤務</div>
-      <div id="areaLabel" class="hud-chip subtle">帳場</div>
+    <div id="hud" class="hud">
+      <div class="hud-left">
+        <div class="badge" id="day-label">DAY 1</div>
+        <div class="badge secondary" id="phase-label">昼勤務</div>
+        <div class="badge secondary" id="area-label">帳場</div>
+      </div>
+      <div class="hud-right">
+        <div class="distance-pill" id="distance-label">201号室 約18m</div>
+        <button id="menu-btn" class="menu-btn">MENU</button>
+      </div>
+      <div class="objective-panel" id="objective-panel">
+        <div class="objective-title">目的</div>
+        <div class="objective-text" id="objective-text">女将に話しかける</div>
+        <div class="objective-sub" id="objective-sub">帳場へ</div>
+      </div>
+      <div class="prompt" id="prompt">E / ACT : 調べる</div>
+      <canvas id="minimap" width="220" height="130"></canvas>
     </div>
 
-    <div class="hud-row center hud-block" id="miniMapWrap">
-      <div class="map-frame">
-        <div class="map-title">館内導線</div>
-        <canvas id="miniMap" width="320" height="120"></canvas>
+    <div id="joystick-zone" class="joystick-zone">
+      <div id="joystick-base" class="joystick-base"><div id="joystick-knob" class="joystick-knob"></div></div>
+      <div class="move-label">MOVE</div>
+    </div>
+    <div id="look-zone" class="look-zone"><span>DRAG LOOK</span></div>
+    <button id="act-btn" class="act-btn">ACT</button>
+
+    <div id="dialogue" class="dialogue hidden">
+      <div class="portrait" id="portrait"></div>
+      <div class="dialogue-box">
+        <div class="dialogue-name" id="dialogue-name">女将</div>
+        <div class="dialogue-text" id="dialogue-text">……</div>
+        <div class="dialogue-continue">タップで続く</div>
       </div>
     </div>
 
-    <div class="hud-row right stack">
-      <button id="menuBtn" class="mini-btn" type="button">MENU</button>
-      <div id="distanceBox" class="distance-box">目標 0m</div>
-    </div>
-
-    <div id="objectiveBox" class="objective-box">読み込み中...</div>
-    <div id="promptBox" class="prompt-box hidden">E / ACT で調べる</div>
-    <div id="statusBox" class="status-box">起動中...</div>
-
-    <div id="dialogueBox" class="dialogue-box hidden">
-      <div class="dialogue-layout">
-        <canvas id="portraitCanvas" class="portrait-canvas" width="180" height="220"></canvas>
-        <div class="dialogue-main">
-          <div id="speakerLabel" class="speaker-label">記録</div>
-          <div id="dialogueText" class="dialogue-text">……</div>
-          <div class="dialogue-help">タップ / E / ACT で進む</div>
-        </div>
+    <div id="menu" class="overlay hidden">
+      <div class="menu-card">
+        <h2>MENU</h2>
+        <button data-action="save">SAVE</button>
+        <button data-action="load">LOAD</button>
+        <button data-action="hud">HUD OFF / ON</button>
+        <button data-action="title">TITLE</button>
+        <button data-action="close">閉じる</button>
       </div>
     </div>
 
-    <div id="menuPanel" class="menu-panel hidden">
-      <div class="menu-title">メニュー</div>
-      <div class="menu-grid">
-        <button id="saveBtn" class="menu-btn" type="button">SAVE</button>
-        <button id="loadBtn" class="menu-btn" type="button">LOAD</button>
-        <button id="hudToggleBtn" class="menu-btn" type="button">HUD OFF</button>
-        <a class="menu-btn link" href="index.html">TITLE</a>
+    <div id="gameover" class="overlay hidden">
+      <div class="menu-card gameover-card">
+        <h2>GAME OVER</h2>
+        <p>誘導員に捕まった。</p>
+        <button data-go="retry">追跡直前からやり直す</button>
+        <button data-go="title">タイトルへ戻る</button>
       </div>
     </div>
 
-    <div id="endingScreen" class="ending-screen hidden">
-      <div class="ending-card">
-        <div class="title-kicker">ENDING</div>
-        <h2 id="endingTitle">記録の夜</h2>
-        <p id="endingText">……</p>
-        <div class="title-actions single">
-          <a href="play.html" class="title-btn primary">はじめから</a>
-          <a href="index.html" class="title-btn">タイトルへ戻る</a>
-        </div>
+    <div id="ending" class="overlay hidden">
+      <div class="menu-card ending-card">
+        <h2>第一章・終了</h2>
+        <p>離れ通路で見つけた古い宿帳には、同じ名前が何度も記されていた。<br>女将はまだ何かを隠している。</p>
+        <button data-end="title">タイトルへ戻る</button>
       </div>
     </div>
+  </div>
 
-    <div class="touch-ui landscape">
-      <div class="move-wrap">
-        <div class="stick-title">MOVE</div>
-        <div id="movePad" class="stick-pad">
-          <div id="moveKnob" class="stick-knob"></div>
-        </div>
-      </div>
-      <div class="right-ui">
-        <div class="look-hint">右半分ドラッグで視点</div>
-        <button id="actBtn" class="act-btn" type="button">ACT</button>
-      </div>
-    </div>
-
-      </div>
-
-  <script>
-    window.__YOINADO_CONTINUE__ = new URLSearchParams(location.search).get('continue') === '1';
-  </script>
-  <script src="game.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="game.js"></script>
 </body>
 </html>

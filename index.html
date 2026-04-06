@@ -1,39 +1,38 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no" />
-  <title>宵宿 v18 Overdrive Web</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>宵宿 A-1 Real3D Test</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body class="title-body">
-  <div class="title-screen-fixed">
-    <div class="title-shell-fixed title-shell-v15">
-      <div class="title-kicker">OVERDRIVE WEB HORROR / v18</div>
-      <div class="title-sub">3Dキャラ改善 / 追跡バグ修正 / 扉立体感強化</div>
-      <h1 class="title-logo">宵宿</h1>
-      <div class="title-roman">YOIYADO</div>
-      <p class="title-copy">
-        山奥の古い旅館で住み込み夜勤を始めた主人公は、<br>
-        接客と雑務をこなしながら宿泊客たちの証言を集め、<br>
-        深夜になると現れる「誘導員」に追われながら、<br>
-        館内で繰り返される不可解な失踪の順番へ踏み込んでいく。
-      </p>
+  <div class="crt"></div>
+  <main class="title-shell">
+    <div class="title-card">
+      <p class="eyebrow">A / GitHubで動く実3D試験版</p>
+      <h1>宵宿</h1>
+      <p class="roman">YOIYADO</p>
+      <p class="lead">帳場、客室廊下、厨房、浴場前、宿帳庫、離れ通路を巡り、<br>仕事をしながら旅館の不可解な事件を追う一人称ホラー。</p>
+      <ul class="feature-list">
+        <li>実3Dの立体キャラクター</li>
+        <li>ACTでのみ扉遷移。戻りバグ対策済み</li>
+        <li>右上に目的地までの距離表示</li>
+        <li>MENUから SAVE / LOAD / HUD ON-OFF</li>
+      </ul>
       <div class="title-actions">
-        <a class="title-btn primary" href="play.html">はじめから</a>
-        <a class="title-btn" href="play.html?continue=1">つづきから</a>
+        <a class="main-btn" href="play.html">はじめから</a>
+        <button class="sub-btn" id="wipe-save">セーブを消す</button>
       </div>
-      <div class="title-howto">
-        <div class="title-howto-label">操作</div>
-        PC: WASD移動 / マウス視点 / Eで話す・調べる / ESCでメニュー<br>
-        スマホ: 左スティック移動 / 右半分ドラッグ視点 / ACTで話す・調べる / MENUで保存やHUD切替<br>
-        まずは帳場で女将に話しかけ、配膳盆を持って201号室へ向かってください。<br>
-        DAY2では従業員室・203号室・中庭・離れ通路まで調査が広がります。<br>
-        さらにDAY3では地下記録庫まで開き、最後の追跡を越えると結末に届きます。<br>
-        右上には目標までの概算距離が表示されます。
-      </div>
-      <div class="title-foot">3Dキャラ改善試験版 / 横画面固定想定 / v18</div>
+      <p class="hint">PC: WASD / マウスドラッグ / E / ESC<br>スマホ: 左スティック移動 / 右半分ドラッグ視点 / ACT</p>
+      <p class="version">A-1 / Real3D GitHub Trial</p>
     </div>
-  </div>
+  </main>
+  <script>
+    document.getElementById('wipe-save').addEventListener('click', function(){
+      localStorage.removeItem('yoiyado_real3d_a1');
+      alert('セーブを削除しました');
+    });
+  </script>
 </body>
 </html>
