@@ -16,21 +16,21 @@
       <p class="lead">帳場、客室廊下、厨房、浴場前、宿帳庫、離れ通路を巡り、<br>仕事をしながら旅館の不可解な事件を追う一人称ホラー。</p>
       <ul class="feature-list">
         <li>実3Dの立体キャラクター</li>
-        <li>ACTでのみ扉遷移。戻りバグ対策済み</li>
+        <li>ACTでのみ扉遷移。追跡リトライと新規開始も修正</li>
         <li>右上に目的地までの距離表示</li>
         <li>MENUから SAVE / LOAD / HUD ON-OFF</li>
       </ul>
       <div class="title-actions">
-        <a class="main-btn" href="play.html">はじめから</a>
+        <a class="main-btn" href="play.html?new=1">はじめから</a>
         <button class="sub-btn" id="wipe-save">セーブを消す</button>
       </div>
       <p class="hint">PC: WASD / マウスドラッグ / E / ESC<br>スマホ: 左スティック移動 / 右半分ドラッグ視点 / ACT</p>
-      <p class="version">A-1 / Real3D GitHub Trial</p>
+      <p class="version">A-1 / Real3D GitHub Trial v20</p>
     </div>
   </main>
   <script>
     document.getElementById('wipe-save').addEventListener('click', function(){
-      localStorage.removeItem('yoiyado_real3d_a1');
+      localStorage.removeItem('yoiyado_real3d_a1_v20');
       alert('セーブを削除しました');
     });
   </script>

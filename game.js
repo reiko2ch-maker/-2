@@ -5,7 +5,7 @@ if (typeof THREE === 'undefined') {
   return;
 }
 
-const SAVE_KEY = 'yoiyado_real3d_a1_v19';
+const SAVE_KEY = 'yoiyado_real3d_a1_v20';
 const TAU = Math.PI * 2;
 
 const canvas = document.getElementById('game-canvas');
@@ -38,7 +38,7 @@ scene.background = new THREE.Color(0x06080d);
 scene.fog = new THREE.Fog(0x080a10, 16, 42);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.8));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -369,7 +369,7 @@ function receptionDesk(){
   bell.position.set(-1.4,1.36,0); g.add(bell);
   const ledger = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.08,0.6), new THREE.MeshStandardMaterial({ color: 0x27495d, roughness: 0.8 }));
   ledger.position.set(1.1,1.34,0.05); g.add(ledger);
-  g.position.set(0,0,-3.4); areaGroup.add(g);
+  g.position.set(0,0,-4.3); areaGroup.add(g);
   addBoxCollider(0,-3.4,4.8,1.45);
 }
 function bathCurtain(){
@@ -403,36 +403,52 @@ function archiveShelves(){
 }
 function makeCharacter(type, costume){
   const g = new THREE.Group();
-  const skin = new THREE.MeshStandardMaterial({ color: 0xf1d5c3, roughness: 0.85 });
-  const clothing = new THREE.MeshStandardMaterial({ color: costume || 0x374c7a, roughness: 0.95 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xf1d5c3, roughness: 0.82 });
+  const clothing = new THREE.MeshStandardMaterial({ color: costume || 0x374c7a, roughness: 0.92 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x1a1d24, roughness: 0.95 });
-  const headMats = [skin, skin, skin, skin, new THREE.MeshStandardMaterial({ map: faceTextures[type] }), skin];
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42,0.46,0.42), headMats);
+  const shoeMat = new THREE.MeshStandardMaterial({ color: 0x0d0f16, roughness: 0.82 });
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 22, 18), skin);
   head.position.y = 1.72; head.castShadow = true;
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.12,0.16), skin); neck.position.y = 1.46; neck.castShadow = true;
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.58,0.76,0.34), clothing); torso.position.y = 1.04; torso.castShadow = true;
-  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.46,0.22,0.28), clothing); waist.position.y = 0.58; waist.castShadow = true;
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.74,0.18), clothing); armL.position.set(-0.42,1.06,0); armL.castShadow = true;
-  const armR = armL.clone(); armR.position.x = 0.42;
-  const forearmL = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.52,0.16), skin); forearmL.position.set(-0.42,0.56,0.02); forearmL.castShadow = true;
-  const forearmR = forearmL.clone(); forearmR.position.x = 0.42;
-  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.74,0.2), dark); legL.position.set(-0.14,0.18,0); legL.castShadow = true;
-  const legR = legL.clone(); legR.position.x = 0.14;
-  const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.12,0.36), new THREE.MeshStandardMaterial({ color: 0x0d0f16, roughness: 0.8 })); shoeL.position.set(-0.14,-0.24,0.04); shoeL.castShadow = true;
-  const shoeR = shoeL.clone(); shoeR.position.x = 0.14;
-  g.add(head, neck, torso, waist, armL, armR, forearmL, forearmR, legL, legR, shoeL, shoeR);
+  const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.34), new THREE.MeshBasicMaterial({ map: faceTextures[type], transparent:false }));
+  facePlane.position.set(0,1.71,0.19); g.add(facePlane);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.09,0.12,12), skin); neck.position.y = 1.44; neck.castShadow = true;
+  const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.32,0.62,14), clothing); chest.position.y = 1.05; chest.castShadow = true; chest.scale.z = 0.86;
+  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.24,14), clothing); hips.position.y = 0.63; hips.castShadow = true; hips.scale.z = 0.9;
+  const shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.1,12,12), clothing); shoulderL.position.set(-0.34,1.24,0);
+  const shoulderR = shoulderL.clone(); shoulderR.position.x = 0.34;
+  const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.07,0.58,12), clothing); armL.position.set(-0.42,0.98,0); armL.rotation.z = 0.08; armL.castShadow = true;
+  const armR = armL.clone(); armR.position.x = 0.42; armR.rotation.z = -0.08;
+  const handL = new THREE.Mesh(new THREE.SphereGeometry(0.085,12,12), skin); handL.position.set(-0.44,0.66,0.02); handL.castShadow = true;
+  const handR = handL.clone(); handR.position.x = 0.44;
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.1,0.72,12), dark); legL.position.set(-0.15,0.15,0); legL.castShadow = true;
+  const legR = legL.clone(); legR.position.x = 0.15;
+  const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.12,0.38), shoeMat); shoeL.position.set(-0.15,-0.24,0.05); shoeL.castShadow = true;
+  const shoeR = shoeL.clone(); shoeR.position.x = 0.15;
+  g.add(head, neck, chest, hips, shoulderL, shoulderR, armL, armR, handL, handR, legL, legR, shoeL, shoeR);
   if (type === 'okami') {
-    const kimono = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.1,0.42), new THREE.MeshStandardMaterial({ color: 0x6c3d43, roughness: 0.95 }));
-    kimono.position.y = 0.78; kimono.castShadow = true; g.add(kimono);
+    const kimono = new THREE.Mesh(new THREE.CylinderGeometry(0.48,0.34,1.26,14,1), new THREE.MeshStandardMaterial({ color: 0x6c3d43, roughness: 0.95 }));
+    kimono.position.y = 0.72; kimono.castShadow = true; g.add(kimono);
+    const obi = new THREE.Mesh(new THREE.BoxGeometry(0.72,0.16,0.24), new THREE.MeshStandardMaterial({ color: 0x3b2226, roughness: 0.9 }));
+    obi.position.y = 0.74; obi.castShadow = true; g.add(obi);
+  }
+  if (type === 'maid') {
+    const apron = new THREE.Mesh(new THREE.BoxGeometry(0.54,0.72,0.06), new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 1 }));
+    apron.position.set(0,0.93,0.17); apron.castShadow = true; g.add(apron);
   }
   if (type === 'guide') {
-    const helmet = new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.22,0.22,20), new THREE.MeshStandardMaterial({ color: 0xf5f6f7, roughness: 0.45 }));
-    helmet.position.y = 2.0; helmet.castShadow = true; g.add(helmet);
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.34,0.02), new THREE.MeshStandardMaterial({ color: 0xffffff }));
-    panel.position.set(0.44,1.1,0.18); g.add(panel);
-    const panel2 = panel.clone(); panel2.position.x = -0.44; panel2.material = new THREE.MeshStandardMaterial({ color: 0xc23b3b }); g.add(panel2);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.27,18,14), new THREE.MeshStandardMaterial({ color: 0xf5f6f7, roughness: 0.4 }));
+    helmet.position.y = 2.0; helmet.scale.y = 0.8; helmet.castShadow = true; g.add(helmet);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.29,0.05,20), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.45 }));
+    brim.position.y = 1.9; g.add(brim);
+    const flagPoleL = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.72,8), new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.6 }));
+    flagPoleL.position.set(-0.55,0.88,0.02); flagPoleL.rotation.z = 0.1; g.add(flagPoleL);
+    const flagL = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.22,0.02), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }));
+    flagL.position.set(-0.43,1.03,0.02); g.add(flagL);
+    const flagPoleR = flagPoleL.clone(); flagPoleR.position.x = 0.55; flagPoleR.rotation.z = -0.1; g.add(flagPoleR);
+    const flagR = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.22,0.02), new THREE.MeshStandardMaterial({ color: 0xc23b3b, roughness: 0.9 }));
+    flagR.position.set(0.43,1.03,0.02); g.add(flagR);
   }
-  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.48, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 }));
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.48, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = -0.29; g.add(shadow);
   return g;
 }
@@ -476,23 +492,23 @@ function buildArea(areaId){
 }
 
 function buildLobby(){
-  createFloor(14, 12, materials.tatami, -0.1);
-  createCeiling(14, 12, 0xf0eadc);
-  wallSegment(0, -5.95, 14, 3.2, 0.14, materials.wallWarm);
-  wallSegment(0, 5.95, 14, 3.2, 0.14, materials.wallWarm);
-  wallSegment(-6.95, 0, 0.14, 3.2, 12, materials.darkWood);
-  wallSegment(6.95, 0, 0.14, 3.2, 12, materials.darkWood);
+  createFloor(16, 14, materials.tatami, -0.1);
+  createCeiling(16, 14, 0xf0eadc);
+  wallSegment(0, -6.95, 16, 3.2, 0.14, materials.wallWarm);
+  wallSegment(0, 6.95, 16, 3.2, 0.14, materials.wallWarm);
+  wallSegment(-7.95, 0, 0.14, 3.2, 14, materials.darkWood);
+  wallSegment(7.95, 0, 0.14, 3.2, 14, materials.darkWood);
   receptionDesk();
   addLamp(-2.4, -0.4, 0.85); addLamp(2.4, -0.4, 0.85);
-  const sign = makeLabelPlane('帳場', 1.4, 0.45); sign.position.set(0, 2.5, -5.85); areaGroup.add(sign);
+  const sign = makeLabelPlane('帳場', 1.4, 0.45); sign.position.set(0, 2.5, -6.85); areaGroup.add(sign);
   const cabinet = new THREE.Mesh(new THREE.BoxGeometry(1.3,1.8,0.6), materials.darkWood);
-  cabinet.position.set(-5.2,0.9,3.4); cabinet.castShadow = cabinet.receiveShadow = true; areaGroup.add(cabinet); addBoxCollider(-5.2,3.4,1.3,0.6);
+  cabinet.position.set(-6.2,0.9,4.4); cabinet.castShadow = cabinet.receiveShadow = true; areaGroup.add(cabinet); addBoxCollider(-5.2,3.4,1.3,0.6);
   const blackPhone = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.14,0.28), materials.black);
-  blackPhone.position.set(2.2,1.36,-3.45); areaGroup.add(blackPhone);
-  addDoor('lobbyToCorridor', '客室廊下', 6.32, 0, 1.35, 'corridor', { x: -5.3, z: 0, yaw: 0 });
-  addDoor('lobbyToKitchen', '厨房', -6.32, 2.2, 1.2, 'kitchen', { x: 4.2, z: -1.2, yaw: Math.PI });
-  addDoor('lobbyToArchive', '宿帳庫', -6.32, -2.2, 1.2, 'archive', { x: 4.2, z: 0, yaw: Math.PI });
-  addNPC('okami', '女将', 'okami', 0x6d3d44, 0, -2.1, Math.PI, npcInteract);
+  blackPhone.position.set(2.2,1.36,-4.35); areaGroup.add(blackPhone);
+  addDoor('lobbyToCorridor', '客室廊下', 7.32, 0, 1.35, 'corridor', { x: -7.6, z: 0, yaw: 0 });
+  addDoor('lobbyToKitchen', '厨房', -7.32, 2.6, 1.2, 'kitchen', { x: 5.0, z: -1.2, yaw: Math.PI });
+  addDoor('lobbyToArchive', '宿帳庫', -7.32, -2.6, 1.2, 'archive', { x: 5.1, z: 0, yaw: Math.PI });
+  addNPC('okami', '女将', 'okami', 0x6d3d44, 0, -3.0, Math.PI, npcInteract);
 }
 
 function buildKitchen(){
@@ -514,19 +530,19 @@ function buildKitchen(){
 }
 
 function buildCorridor(){
-  createFloor(20, 7, materials.wood, -0.1);
-  createCeiling(20, 7, 0xe7dcc9);
-  wallSegment(0,-3.45,20,3.2,0.14,materials.darkWood); wallSegment(0,3.45,20,3.2,0.14,materials.darkWood); wallSegment(-9.95,0,0.14,3.2,7,materials.wallDark); wallSegment(9.95,0,0.14,3.2,7,materials.wallDark);
-  for(let i=-8;i<=8;i+=4){ addLamp(i,0,0.68,0xffd7a6); }
-  for(let z of [-2.4,2.4]) {
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(19.6,0.9,0.18), materials.darkWood); rail.position.set(0,0.45,z); rail.castShadow = rail.receiveShadow = true; areaGroup.add(rail); addBoxCollider(0,z,19.6,0.18);
+  createFloor(24, 9.6, materials.wood, -0.1);
+  createCeiling(24, 9.6, 0xe7dcc9);
+  wallSegment(0,-4.75,24,3.2,0.14,materials.darkWood); wallSegment(0,4.75,24,3.2,0.14,materials.darkWood); wallSegment(-11.95,0,0.14,3.2,9.6,materials.wallDark); wallSegment(11.95,0,0.14,3.2,9.6,materials.wallDark);
+  for(let i=-10;i<=10;i+=4){ addLamp(i,0,0.72,0xffd7a6); }
+  for(let z of [-3.4,3.4]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(23.6,0.9,0.18), materials.darkWood); rail.position.set(0,0.45,z); rail.castShadow = rail.receiveShadow = true; areaGroup.add(rail); addBoxCollider(0,z,23.6,0.18);
   }
-  addDoor('corridorToLobby','帳場',-9.34,0,1.2,'lobby',{x:5.2,z:0,yaw:Math.PI},'x');
-  addDoor('corridorTo201','201',0,-3.28,1.2,'room201',{x:0,z:2.8,yaw:Math.PI},null,0xf0e7d1);
-  addDoor('corridorToBath','浴場',6.2,3.28,1.2,'bath',{x:-4.2,z:0,yaw:0},null,0xd7ecef);
-  addDoor('corridorToNorth','北廊下',9.34,0,1.2,'north',{x:-4.8,z:0,yaw:0},'x',0xc3b28a);
-  const placard = makeLabelPlane('客室廊下', 1.8, 0.45); placard.position.set(-6.5,2.4,-3.3); areaGroup.add(placard);
-  addNPC('maid','仲居','maid',0x575a79,3.6,0.9,Math.PI,npcInteract);
+  addDoor('corridorToLobby','帳場',-11.34,0,1.2,'lobby',{x:7.1,z:0,yaw:Math.PI},'x');
+  addDoor('corridorTo201','201',0,-4.58,1.2,'room201',{x:0,z:4.0,yaw:Math.PI},null,0xf0e7d1);
+  addDoor('corridorToBath','浴場',7.7,4.58,1.2,'bath',{x:-5.6,z:0,yaw:0},null,0xd7ecef);
+  addDoor('corridorToNorth','北廊下',11.34,0,1.2,'north',{x:-6.6,z:0,yaw:0},'x',0xc3b28a);
+  const placard = makeLabelPlane('客室廊下', 1.8, 0.45); placard.position.set(-8.4,2.4,-4.6); areaGroup.add(placard);
+  addNPC('maid','仲居','maid',0x575a79,4.6,1.2,Math.PI,npcInteract);
 }
 
 function buildRoom201(){
@@ -554,16 +570,16 @@ function buildBath(){
 }
 
 function buildArchive(){
-  createFloor(12, 10, materials.tile, -0.1);
-  createCeiling(12, 10, 0xdad8d6);
-  wallSegment(0,-4.95,12,3.2,0.14,materials.wallDark); wallSegment(0,4.95,12,3.2,0.14,materials.wallDark); wallSegment(-5.95,0,0.14,3.2,10,materials.wallDark); wallSegment(5.95,0,0.14,3.2,10,materials.wallDark);
+  createFloor(14, 12, materials.tile, -0.1);
+  createCeiling(14, 12, 0xdad8d6);
+  wallSegment(0,-5.95,14,3.2,0.14,materials.wallDark); wallSegment(0,5.95,14,3.2,0.14,materials.wallDark); wallSegment(-6.95,0,0.14,3.2,12,materials.wallDark); wallSegment(6.95,0,0.14,3.2,12,materials.wallDark);
   archiveShelves();
   addLamp(-2.6,0,0.6,0xffe0b4); addLamp(2.6,0,0.6,0xffe0b4);
-  addDoor('archiveToLobby','帳場',5.35,0,1.15,'lobby',{x:-4.9,z:-2.2,yaw:0},'x',0xb7b39b);
-  addDoor('archiveToDetached','離れ通路',0,-4.35,1.15,'detached',{x:0,z:3.6,yaw:Math.PI},null,0x9689a6);
+  addDoor('archiveToLobby','帳場',6.25,0,1.15,'lobby',{x:-5.6,z:-2.2,yaw:0},'x',0xb7b39b);
+  addDoor('archiveToDetached','離れ通路',0,-5.25,1.15,'detached',{x:0,z:4.6,yaw:Math.PI},null,0x9689a6);
   const ledger = new THREE.Mesh(new THREE.BoxGeometry(0.72,0.16,0.48), new THREE.MeshStandardMaterial({ color: 0x225688, roughness: 0.85 }));
   ledger.position.y = 1.16;
-  addItem('blueLedger','青い宿帳',0,1.1, ledger, itemInteract);
+  addItem('blueLedger','青い宿帳',0,1.8, ledger, itemInteract);
 }
 
 function buildNorth(){
@@ -579,19 +595,19 @@ function buildNorth(){
 }
 
 function buildDetached(){
-  createFloor(14, 8, materials.wood, -0.1);
-  createCeiling(14, 8, 0x1d2235);
+  createFloor(16, 10, materials.wood, -0.1);
+  createCeiling(16, 10, 0x1d2235);
   scene.fog.color.set(0x0c1019); scene.fog.near = 10; scene.fog.far = 28;
-  wallSegment(0,-3.95,14,3.2,0.14,materials.wallDark); wallSegment(0,3.95,14,3.2,0.14,materials.wallDark); wallSegment(-6.95,0,0.14,3.2,8,materials.wallDark); wallSegment(6.95,0,0.14,3.2,8,materials.wallDark);
+  wallSegment(0,-4.95,16,3.2,0.14,materials.wallDark); wallSegment(0,4.95,16,3.2,0.14,materials.wallDark); wallSegment(-7.95,0,0.14,3.2,10,materials.wallDark); wallSegment(7.95,0,0.14,3.2,10,materials.wallDark);
   for(let i=-5;i<=5;i+=5) addLamp(i,0,0.32,0x6e88aa);
-  addDoor('detachedToNorth','北廊下',-6.35,0,1.15,'north',{x:4.0,z:0,yaw:Math.PI},'x',0xa89676);
-  addDoor('detachedToArchive','宿帳庫',0,3.35,1.15,'archive',{x:0,z:-3.2,yaw:0},null,0x9689a6);
+  addDoor('detachedToNorth','北廊下',-7.25,0,1.15,'north',{x:5.2,z:0,yaw:Math.PI},'x',0xa89676);
+  addDoor('detachedToArchive','宿帳庫',0,4.25,1.15,'archive',{x:0,z:-4.2,yaw:0},null,0x9689a6);
   const shrine = new THREE.Group();
   const base = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.44,0.8), materials.darkWood); base.position.y = 0.22; shrine.add(base);
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.84,1.0,0.44), materials.darkWood); body.position.y = 0.92; shrine.add(body);
   const roof = new THREE.Mesh(new THREE.BoxGeometry(1.3,0.16,0.8), materials.wood); roof.position.y = 1.48; shrine.add(roof);
-  shrine.position.set(0,0,-2.6); shrine.traverse(m => { if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; }}); areaGroup.add(shrine); addBoxCollider(0,-2.6,1.3,0.8);
-  addItem('altar','祠',0,-2.6, shrine, itemInteract);
+  shrine.position.set(0,0,-3.2); shrine.traverse(m => { if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; }}); areaGroup.add(shrine); addBoxCollider(0,-2.6,1.3,0.8);
+  addItem('altar','祠',0,-3.2, shrine, itemInteract);
 }
 
 function npcInteract(entity){
@@ -689,15 +705,32 @@ function setStep(id){
   const def = currentStep();
   dayLabelEl.textContent = 'DAY ' + def.day;
   phaseLabelEl.textContent = def.phase;
-  objectiveTextEl.textContent = def.text;
-  objectiveSubEl.textContent = def.sub;
+  if (objectiveTextEl) objectiveTextEl.textContent = def.text;
+  if (objectiveSubEl) objectiveSubEl.textContent = def.sub;
   saveGame();
 }
 
+function getChaseCheckpoint(areaId, linkedStep){
+  if (areaId === 'archive') {
+    return { area: 'archive', x: 3.4, z: 2.2, yaw: Math.PI * 0.9, step: linkedStep, guideSpawn: { x: -3.4, z: -1.4 } };
+  }
+  if (areaId === 'detached') {
+    return { area: 'detached', x: 0, z: 2.2, yaw: Math.PI, step: linkedStep, guideSpawn: { x: 0, z: -2.8 } };
+  }
+  return { area: areaId, x: player.x, z: player.z, yaw: player.yaw, step: linkedStep, guideSpawn: { x: 0, z: 0 } };
+}
 function startChase(areaId, guidePos, linkedStep){
-  state.checkpoint = { area: areaId, x: player.x, z: player.z, yaw: player.yaw, step: linkedStep };
-  state.chase = { active: true, speed: 2.55 };
-  spawnGuide(guidePos.x, guidePos.z);
+  const cp = getChaseCheckpoint(areaId, linkedStep);
+  state.checkpoint = { area: cp.area, x: cp.x, z: cp.z, yaw: cp.yaw, step: linkedStep, guideSpawn: cp.guideSpawn };
+  player.x = cp.x;
+  player.z = cp.z;
+  player.yaw = cp.yaw;
+  player.pitch = 0;
+  state.inputLockUntil = performance.now() + 900;
+  state.doorCooldownUntil = performance.now() + 1200;
+  resetInput();
+  state.chase = { active: true, speed: 2.35, graceUntil: performance.now() + 2200 };
+  spawnGuide(cp.guideSpawn.x, cp.guideSpawn.z);
 }
 function stopChase(){
   state.chase = null;
@@ -712,22 +745,38 @@ function spawnGuide(x,z){
 }
 function triggerGameOver(){
   state.menuOpen = true;
+  resetInput();
   gameOverEl.classList.remove('hidden');
 }
 function retryFromCheckpoint(){
   gameOverEl.classList.add('hidden');
   state.menuOpen = false;
-  if (!state.checkpoint) return;
-  setStep(state.checkpoint.step);
+  state.ended = false;
+  if (!state.checkpoint) {
+    beginNewGame();
+    return;
+  }
+  stopChase();
   state.area = state.checkpoint.area;
   buildArea(state.area);
   player.x = state.checkpoint.x;
   player.z = state.checkpoint.z;
   player.yaw = state.checkpoint.yaw;
   player.pitch = 0;
-  stopChase();
-  if (state.step === 'escape_archive') startChase('archive', {x:0,z:0}, 'escape_archive');
-  if (state.step === 'escape_detached') startChase('detached', {x:0,z:0}, 'escape_detached');
+  resetInput();
+  state.inputLockUntil = performance.now() + 1000;
+  state.doorCooldownUntil = performance.now() + 1400;
+  setStep(state.checkpoint.step);
+  if (state.step === 'escape_archive') {
+    state.chase = { active: true, speed: 2.35, graceUntil: performance.now() + 2200 };
+    const gs = state.checkpoint.guideSpawn || {x:-3.4,z:-1.4};
+    spawnGuide(gs.x, gs.z);
+  }
+  if (state.step === 'escape_detached') {
+    state.chase = { active: true, speed: 2.35, graceUntil: performance.now() + 2200 };
+    const gs = state.checkpoint.guideSpawn || {x:0,z:-2.8};
+    spawnGuide(gs.x, gs.z);
+  }
 }
 
 function interact(){
@@ -757,10 +806,10 @@ function getNearestInteractable(){
     const dx = obj.x - player.x, dz = obj.z - player.z;
     const dist = Math.hypot(dx, dz);
     const isCurrentTarget = !!(trigger && trigger.type === obj.type && trigger.id === obj.entity.id);
-    const maxDist = obj.type === 'door' ? 2.5 : (isCurrentTarget ? 3.4 : 2.7);
+    const maxDist = obj.type === 'door' ? 2.4 : (isCurrentTarget ? 4.1 : 3.0);
     if (dist > maxDist) continue;
     const dir = dist > 0.001 ? ((dx * facing.x + dz * facing.z) / dist) : 1;
-    const minDir = obj.type === 'door' ? 0.05 : (isCurrentTarget ? -0.25 : -0.05);
+    const minDir = obj.type === 'door' ? 0.08 : (isCurrentTarget ? -0.55 : -0.18);
     if (dir < minDir && dist > 1.2) continue;
     const score = dist - (isCurrentTarget ? 0.75 : 0);
     if (score < bestScore) { bestScore = score; best = obj; }
@@ -772,8 +821,8 @@ function useDoor(door){
   if (now < state.doorCooldownUntil || now < state.inputLockUntil) return;
   if (state.lastDoorId === door.id) return;
   state.lastDoorId = door.id;
-  state.doorCooldownUntil = now + 1200;
-  state.inputLockUntil = now + 650;
+  state.doorCooldownUntil = now + 1600;
+  state.inputLockUntil = now + 950;
   resetInput();
   state.area = door.toArea;
   buildArea(state.area);
@@ -802,8 +851,8 @@ function updatePrompt(){
 
 function updateObjectiveDistance(){
   const def = currentStep();
-  objectiveTextEl.textContent = def.text;
-  objectiveSubEl.textContent = def.sub;
+  if (objectiveTextEl) objectiveTextEl.textContent = def.text;
+  if (objectiveSubEl) objectiveSubEl.textContent = def.sub;
   const approx = calculateDistanceToObjective();
   distanceLabelEl.textContent = def.sub + ' 約' + Math.max(1, Math.round(approx)) + 'm';
 }
@@ -892,7 +941,7 @@ function updateChase(dt){
   const gx = state.guide.group.position.x, gz = state.guide.group.position.z;
   const dx = player.x - gx, dz = player.z - gz;
   const dist = Math.hypot(dx,dz);
-  if (dist < 0.86) {
+  if (performance.now() > state.chase.graceUntil && dist < 0.96) {
     triggerGameOver();
     return;
   }
@@ -971,8 +1020,8 @@ function loadGame(){
     player.z = typeof data.z === 'number' ? data.z : 0;
     player.yaw = typeof data.yaw === 'number' ? data.yaw : 0;
     player.pitch = typeof data.pitch === 'number' ? data.pitch : 0;
-    if (state.step === 'escape_archive') startChase('archive',{x:0,z:0},'escape_archive');
-    if (state.step === 'escape_detached') startChase('detached',{x:0,z:0},'escape_detached');
+    if (state.step === 'escape_archive') { const gs=(state.checkpoint&&state.checkpoint.guideSpawn)||{x:-3.4,z:-1.4}; state.chase={active:true,speed:2.35,graceUntil:performance.now()+2200}; spawnGuide(gs.x,gs.z); }
+    if (state.step === 'escape_detached') { const gs=(state.checkpoint&&state.checkpoint.guideSpawn)||{x:0,z:-2.8}; state.chase={active:true,speed:2.35,graceUntil:performance.now()+2200}; spawnGuide(gs.x,gs.z); }
     if (state.ended) endingEl.classList.remove('hidden');
     return true;
   } catch (e) {
@@ -1061,13 +1110,44 @@ function toggleMenu(force){
 }
 function onResize(){ renderer.setSize(window.innerWidth, window.innerHeight, false); camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); }
 
+
+function beginNewGame(){
+  localStorage.removeItem(SAVE_KEY);
+  state.area = 'lobby';
+  state.day = 1;
+  state.phaseLabel = '昼勤務';
+  state.step = 'talk_okami';
+  state.hudHidden = false;
+  state.menuOpen = false;
+  state.dialogueQueue = [];
+  state.checkpoint = null;
+  state.chase = null;
+  state.guide = null;
+  state.lastDoorId = null;
+  state.doorCooldownUntil = 0;
+  state.inputLockUntil = 0;
+  state.questFlags = {};
+  state.ended = false;
+  gameOverEl.classList.add('hidden');
+  endingEl.classList.add('hidden');
+  dialogueOverlay.classList.add('hidden');
+  menuOverlay.classList.add('hidden');
+  stopChase();
+  buildArea('lobby');
+  player.x = 0; player.z = 2.8; player.yaw = Math.PI; player.pitch = 0;
+  resetInput();
+  setStep('talk_okami');
+}
+
 function init(){
   setupControls();
-  const ok = loadGame();
-  if (!ok) {
-    buildArea(state.area);
-    player.x = 0; player.z = 2.8; player.yaw = Math.PI;
-    setStep('talk_okami');
+  const params = new URLSearchParams(location.search);
+  if (params.get('new') === '1') {
+    beginNewGame();
+    history.replaceState(null, '', 'play.html');
+  } else {
+    const ok = loadGame();
+    if (!ok) beginNewGame();
   }
   requestAnimationFrame(animate);
 }
