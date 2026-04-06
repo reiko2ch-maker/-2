@@ -5,7 +5,7 @@ if (typeof THREE === 'undefined') {
   return;
 }
 
-const SAVE_KEY = 'yoiyado_real3d_a1';
+const SAVE_KEY = 'yoiyado_real3d_a1_v19';
 const TAU = Math.PI * 2;
 
 const canvas = document.getElementById('game-canvas');
@@ -80,6 +80,7 @@ const state = {
   guide: null,
   lastDoorId: null,
   doorCooldownUntil: 0,
+  inputLockUntil: 0,
   questFlags: {},
   ended: false
 };
@@ -744,8 +745,10 @@ function interact(){
 }
 
 function getNearestInteractable(){
-  let best = null; let bestDist = 999;
-  const facing = { x: Math.sin(player.yaw), z: Math.cos(player.yaw) };
+  let best = null; let bestScore = Infinity;
+  const def = currentStep();
+  const trigger = def && def.trigger ? def.trigger : null;
+  const facing = { x: -Math.sin(player.yaw), z: -Math.cos(player.yaw) };
   const all = [];
   doors.forEach(d => all.push({ type: 'door', entity: d, x: d.x, z: d.z, label: d.label }));
   npcs.forEach(n => all.push({ type: 'npc', entity: n, x: n.x, z: n.z, label: n.name }));
@@ -753,20 +756,25 @@ function getNearestInteractable(){
   for (const obj of all) {
     const dx = obj.x - player.x, dz = obj.z - player.z;
     const dist = Math.hypot(dx, dz);
-    if (dist > 2.3) continue;
+    const isCurrentTarget = !!(trigger && trigger.type === obj.type && trigger.id === obj.entity.id);
+    const maxDist = obj.type === 'door' ? 2.5 : (isCurrentTarget ? 3.4 : 2.7);
+    if (dist > maxDist) continue;
     const dir = dist > 0.001 ? ((dx * facing.x + dz * facing.z) / dist) : 1;
-    if (dir < 0.25) continue;
-    if (dist < bestDist) { bestDist = dist; best = obj; }
+    const minDir = obj.type === 'door' ? 0.05 : (isCurrentTarget ? -0.25 : -0.05);
+    if (dir < minDir && dist > 1.2) continue;
+    const score = dist - (isCurrentTarget ? 0.75 : 0);
+    if (score < bestScore) { bestScore = score; best = obj; }
   }
   return best;
 }
 function useDoor(door){
   const now = performance.now();
-  if (now < state.doorCooldownUntil) return;
+  if (now < state.doorCooldownUntil || now < state.inputLockUntil) return;
   if (state.lastDoorId === door.id) return;
   state.lastDoorId = door.id;
-  state.doorCooldownUntil = now + 900;
-  input.joyX = 0; input.joyY = 0; centerJoystick();
+  state.doorCooldownUntil = now + 1200;
+  state.inputLockUntil = now + 650;
+  resetInput();
   state.area = door.toArea;
   buildArea(state.area);
   player.x = door.toSpawn.x;
@@ -781,8 +789,9 @@ function useDoor(door){
 }
 
 function updatePrompt(){
+  const now = performance.now();
   const obj = getNearestInteractable();
-  if (!obj || state.menuOpen || !dialogueOverlay.classList.contains('hidden')) {
+  if (!obj || state.menuOpen || !dialogueOverlay.classList.contains('hidden') || now < state.inputLockUntil) {
     promptEl.classList.remove('show');
     return;
   }
@@ -796,7 +805,7 @@ function updateObjectiveDistance(){
   objectiveTextEl.textContent = def.text;
   objectiveSubEl.textContent = def.sub;
   const approx = calculateDistanceToObjective();
-  distanceLabelEl.textContent = areaLabels[def.targetArea] + ' 約' + Math.max(1, Math.round(approx)) + 'm';
+  distanceLabelEl.textContent = def.sub + ' 約' + Math.max(1, Math.round(approx)) + 'm';
 }
 function calculateDistanceToObjective(){
   const def = currentStep();
@@ -859,8 +868,8 @@ function movePlayer(dt){
   const nz = moveY / Math.max(1, len);
   const speed = player.speed * (input.keys.ShiftLeft ? player.run : 1) * dt;
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
-  const dx = (sin * nz + cos * nx) * speed;
-  const dz = (cos * nz - sin * nx) * speed;
+  const dx = (cos * nx - sin * nz) * speed;
+  const dz = (-sin * nx - cos * nz) * speed;
   attemptMove(player.x + dx, player.z + dz);
 }
 function attemptMove(nx, nz){
@@ -984,8 +993,7 @@ function setupControls(){
     input.keys[e.code] = true;
   });
   document.addEventListener('keyup', function(e){ input.keys[e.code] = false; });
-  actBtn.addEventListener('click', interact);
-  actBtn.addEventListener('touchstart', function(e){ e.preventDefault(); interact(); }, { passive:false });
+  actBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); interact(); });
   menuBtn.addEventListener('click', toggleMenu);
   menuOverlay.addEventListener('click', function(e){
     const btn = e.target.closest('button'); if (!btn) return;
@@ -1044,7 +1052,7 @@ function centerJoystick(){ joystickKnob.style.transform = 'translate(0px, 0px)';
 function startLook(e){ if(state.menuOpen) return; input.lookId = e.pointerId; input.lookDragging = true; input.pointerX = e.clientX; input.pointerY = e.clientY; lookZone.setPointerCapture?.(e.pointerId); }
 function moveLook(e){ if(!input.lookDragging || e.pointerId !== input.lookId || state.menuOpen) return; const dx = e.clientX - input.pointerX; const dy = e.clientY - input.pointerY; input.pointerX = e.clientX; input.pointerY = e.clientY; rotateLook(dx,dy); }
 function endLook(e){ if(e.pointerId !== input.lookId) return; input.lookDragging = false; input.lookId = null; }
-function rotateLook(dx,dy){ player.yaw -= dx * 0.0052; player.pitch -= dy * 0.0042; player.pitch = Math.max(-1.05, Math.min(1.05, player.pitch)); }
+function rotateLook(dx,dy){ player.yaw -= dx * 0.0088; player.pitch -= dy * 0.0064; player.pitch = Math.max(-1.05, Math.min(1.05, player.pitch)); }
 function toggleMenu(force){
   const open = typeof force === 'boolean' ? force : !state.menuOpen;
   state.menuOpen = open;
